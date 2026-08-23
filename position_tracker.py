@@ -61,13 +61,7 @@ class PositionTracker:
         confidence: str = "MEDIUM",
         sl_source: str = "unknown",
     ) -> bool:
-        """
-        Открывает позицию.
-        
-        1. Регистрирует позицию локально.
-        2. Если real-режим — ставит SL/TP через exchange.
-        3. Возвращает True если успешно.
-        """
+        """Открывает позицию."""
         if symbol in self.positions:
             log.warning(f"{symbol}: позиция уже открыта")
             return False
@@ -76,16 +70,32 @@ class PositionTracker:
             log.error(f"{symbol}: некорректные параметры qty={qty}, entry_price={entry_price}")
             return False
         
+        # [НОВОЕ] Регистрируем позицию в exchange
+        if side == "LONG":
+            order = await self.exchange.place_market_buy(symbol, qty, price=entry_price)
+        else:
+            order = await self.exchange.place_market_sell(symbol, qty, price=entry_price)
+        
+        if not order or order.get("filled_amount", 0) <= 0:
+            log.error(f"{symbol}: не удалось открыть позицию через exchange")
+            return False
+        
+        # Используем реальные значения из ответа exchange
+        actual_qty = order.get("filled_amount", qty)
+        actual_price = order.get("avg_price", entry_price)
+        if actual_price <= 0:
+            actual_price = entry_price
+        
         now = time.time()
         
-        # Создаём локальную позицию
+        # Создаём локальную позицию с реальными значениями
         pos = {
             "symbol": symbol,
             "side": side,
-            "entry_price": entry_price,
+            "entry_price": actual_price,  # [ИСПРАВЛЕНО] используем реальную цену
             "entry_time": now,
-            "quantity": qty,
-            "remaining_qty": qty,
+            "quantity": actual_qty,        # [ИСПРАВЛЕНО] используем реальное количество
+            "remaining_qty": actual_qty,
             "sl_price": sl_price,
             "sl_pct": sl_pct,
             "tp1_price": tp1_price,
@@ -95,7 +105,7 @@ class PositionTracker:
             "score": score,
             "confidence": confidence,
             "size_usdt": size_usdt,
-            "highest": entry_price,  # Для LONG — максимум, для SHORT — минимум
+            "highest": actual_price,
             "breakeven_set": False,
             "trailing_activated": False,
             "tp1_done": False,
@@ -108,8 +118,7 @@ class PositionTracker:
             "mae": 0.0,
             "tp1_closed_qty": 0.0,
             "closing": False,
-            "last_watch_price": entry_price,
-            # Для real-режима — ID ордеров на бирже
+            "last_watch_price": actual_price,
             "sl_order_id": None,
             "sl_client_id": None,
             "tp_order_id": None,
@@ -119,8 +128,8 @@ class PositionTracker:
         self.positions[symbol] = pos
         
         log.info(
-            f"TRACKER OPEN {symbol} [{side}] @ {fmt_price(entry_price)} "
-            f"qty={qty:.6f} size=${size_usdt:.1f} "
+            f"TRACKER OPEN {symbol} [{side}] @ {fmt_price(actual_price)} "
+            f"qty={actual_qty:.6f} size=${size_usdt:.1f} "
             f"SL={fmt_price(sl_price)} ({sl_pct:.1f}%) "
             f"TP1={fmt_price(tp1_price)} ({tp1_pct:.1f}%) "
             f"TP2={fmt_price(tp2_price)} ({tp2_pct:.1f}%)"

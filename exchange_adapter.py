@@ -27,13 +27,21 @@ class ExchangeAdapter(ABC):
     """
     
     @abstractmethod
-    async def place_market_buy(self, symbol: str, qty: float) -> Optional[dict]:
-        """Открывает LONG рыночным ордером."""
+    async def place_market_buy(self, symbol: str, qty: float, price: float = 0.0) -> Optional[dict]:
+        """
+        Открывает LONG рыночным ордером.
+        qty — количество монет.
+        price — ожидаемая цена входа (используется для paper-режима).
+        """
         pass
-    
+
     @abstractmethod
-    async def place_market_sell(self, symbol: str, qty: float) -> Optional[dict]:
-        """Открывает SHORT рыночным ордером."""
+    async def place_market_sell(self, symbol: str, qty: float, price: float = 0.0) -> Optional[dict]:
+        """
+        Открывает SHORT рыночным ордером.
+        qty — количество монет.
+        price — ожидаемая цена входа (используется для paper-режима).
+        """
         pass
     
     @abstractmethod
@@ -103,36 +111,34 @@ class PaperExchange(ExchangeAdapter):
         # Счётчик ордеров
         self._order_counter = 1000
     
-    async def place_market_buy(self, symbol: str, qty: float) -> Optional[dict]:
+    async def place_market_buy(self, symbol: str, qty: float, price: float = 0.0) -> Optional[dict]:
         """Эмулирует открытие LONG."""
-        # Для paper-режима нужна цена входа — её передаст PositionTracker
-        # Здесь просто регистрируем позицию
         self._positions[symbol] = {
             "qty": qty,
             "side": "LONG",
-            "entry_price": 0.0,  # Будет установлено PositionTracker
+            "entry_price": price if price > 0 else 0.0,  # [ИСПРАВЛЕНО] используем переданную цену
         }
         self._order_counter += 1
         return {
             "status": "filled",
             "filled_amount": qty,
-            "avg_price": 0.0,  # PositionTracker установит реальную цену
+            "avg_price": price if price > 0 else 0.0,
             "order_id": self._order_counter,
             "client_order_id": f"paper_{uuid.uuid4().hex[:16]}",
         }
-    
-    async def place_market_sell(self, symbol: str, qty: float) -> Optional[dict]:
+
+    async def place_market_sell(self, symbol: str, qty: float, price: float = 0.0) -> Optional[dict]:
         """Эмулирует открытие SHORT."""
         self._positions[symbol] = {
             "qty": qty,
             "side": "SHORT",
-            "entry_price": 0.0,
+            "entry_price": price if price > 0 else 0.0,  # [ИСПРАВЛЕНО]
         }
         self._order_counter += 1
         return {
             "status": "filled",
             "filled_amount": qty,
-            "avg_price": 0.0,
+            "avg_price": price if price > 0 else 0.0,
             "order_id": self._order_counter,
             "client_order_id": f"paper_{uuid.uuid4().hex[:16]}",
         }
@@ -282,13 +288,35 @@ class RealExchange(ExchangeAdapter):
         # Локальный кэш algo-ордеров: symbol -> {sl: {...}, tp: {...}}
         self._algo_orders: Dict[str, dict] = {}
     
-    async def place_market_buy(self, symbol: str, qty: float) -> Optional[dict]:
-        """Открывает LONG через api.py. qty — это quote_qty (USDT)."""
-        return await self.api.place_market_buy(symbol, qty)
-    
-    async def place_market_sell(self, symbol: str, qty: float) -> Optional[dict]:
-        """Открывает SHORT через api.py. qty — это quote_qty (USDT)."""
-        return await self.api.place_market_sell_open(symbol, qty)
+    async def place_market_buy(self, symbol: str, qty: float, price: float = 0.0) -> Optional[dict]:
+        """
+        Открывает LONG через api.py.
+        qty — количество монет.
+        price — используется для конвертации в USDT (если передан).
+        """
+        # Если цена не передана, получаем текущую
+        if price <= 0:
+            price = await self.api.get_last_price(symbol)
+            if not price:
+                return None
+        
+        # Конвертируем qty монет в quote_qty (USDT)
+        quote_qty = qty * price
+        return await self.api.place_market_buy(symbol, quote_qty)
+
+    async def place_market_sell(self, symbol: str, qty: float, price: float = 0.0) -> Optional[dict]:
+        """
+        Открывает SHORT через api.py.
+        qty — количество монет.
+        price — используется для конвертации в USDT (если передан).
+        """
+        if price <= 0:
+            price = await self.api.get_last_price(symbol)
+            if not price:
+                return None
+        
+        quote_qty = qty * price
+        return await self
     
     async def close_position(self, symbol: str, qty: float, price: float) -> Optional[dict]:
         """
