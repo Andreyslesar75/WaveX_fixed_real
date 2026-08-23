@@ -83,9 +83,26 @@ async def test_position_tracker():
     # 3. Прогоняем через серию цен — TP1
     # ================================================================
     print("\n[3] Прогон через цены — ожидаем TP1...")
+    
+    # Сначала подаём цену ниже TP1 (51000 < 52000)
     events = await tracker.update_prices({"BTC_USDT": 51000.0})
+    if events:
+        print(f"  ✗ ОШИБКА: TP1 сработал при цене 51000 (должен быть >= 52000)")
+        return
+    print(f"  ✓ TP1 не сработал при 51000 (правильно, tp1_price=52000)")
+    
+    # Проверяем, что breakeven установился (profit 2% > 1.5%)
+    pos = tracker.get_position("BTC_USDT")
+    if pos and pos.get("breakeven_set"):
+        print(f"  ✓ Breakeven установлен (profit 2% > 1.5%)")
+    else:
+        print(f"  ✗ ОШИБКА: breakeven не установлен")
+        return
+    
+    # Теперь подаём цену >= TP1 (52000)
+    events = await tracker.update_prices({"BTC_USDT": 52001.0})
     if not events:
-        print(f"  ✗ ОШИБКА: TP1 не сработал при цене 51000")
+        print(f"  ✗ ОШИБКА: TP1 не сработал при цене 52000")
         return
     
     event = events[0]

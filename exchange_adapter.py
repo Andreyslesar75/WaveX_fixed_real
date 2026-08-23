@@ -37,8 +37,8 @@ class ExchangeAdapter(ABC):
         pass
     
     @abstractmethod
-    async def close_position(self, symbol: str, qty: float) -> Optional[dict]:
-        """Закрывает позицию рыночным ордером."""
+    async def close_position(self, symbol: str, qty: float, price: float) -> Optional[dict]:
+        """Закрывает позицию по указанной цене."""
         pass
     
     @abstractmethod
@@ -137,8 +137,8 @@ class PaperExchange(ExchangeAdapter):
             "client_order_id": f"paper_{uuid.uuid4().hex[:16]}",
         }
     
-    async def close_position(self, symbol: str, qty: float) -> Optional[dict]:
-        """Эмулирует закрытие позиции."""
+    async def close_position(self, symbol: str, qty: float, price: float) -> Optional[dict]:
+        """Эмулирует закрытие позиции по указанной цене."""
         if symbol not in self._positions:
             return None
         
@@ -149,11 +149,21 @@ class PaperExchange(ExchangeAdapter):
         if pos["qty"] <= 1e-12:
             del self._positions[symbol]
         
+        # Рассчитываем PnL для эмуляции
+        entry_price = pos.get("entry_price", price)
+        side = pos.get("side", "LONG")
+        if side == "SHORT":
+            pnl = (entry_price - price) * actual_qty
+        else:
+            pnl = (price - entry_price) * actual_qty
+        
+        self._balance += pnl
+        
         self._order_counter += 1
         return {
             "status": "filled",
             "filled_amount": actual_qty,
-            "avg_price": 0.0,  # PositionTracker установит реальную цену
+            "avg_price": price,
             "order_id": self._order_counter,
             "client_order_id": f"paper_{uuid.uuid4().hex[:16]}",
         }
@@ -280,8 +290,11 @@ class RealExchange(ExchangeAdapter):
         """Открывает SHORT через api.py. qty — это quote_qty (USDT)."""
         return await self.api.place_market_sell_open(symbol, qty)
     
-    async def close_position(self, symbol: str, qty: float) -> Optional[dict]:
-        """Закрывает позицию через api.py."""
+    async def close_position(self, symbol: str, qty: float, price: float) -> Optional[dict]:
+        """
+        Закрывает позицию через api.py.
+        Цена используется только для логирования, реальное исполнение — рыночное.
+        """
         pos_info = await self.pm.get_position_info(symbol)
         if not pos_info:
             return None

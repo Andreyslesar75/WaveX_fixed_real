@@ -334,7 +334,7 @@ class PositionTracker:
         
         try:
             # Закрываем через exchange
-            close_order = await self.exchange.close_position(symbol, final_qty)
+            close_order = await self.exchange.close_position(symbol, final_qty, exit_price)
             
             if not close_order or close_order.get("filled_amount", 0) <= 0:
                 log.error(f"{symbol}: не удалось закрыть позицию {reason}")
@@ -414,7 +414,7 @@ class PositionTracker:
             return 0.0
         
         # Закрываем через exchange
-        close_order = await self.exchange.close_position(symbol, actual_qty)
+        close_order = await self.exchange.close_position(symbol, actual_qty, price)
         
         if not close_order or close_order.get("filled_amount", 0) <= 0:
             log.error(f"{symbol}: частичное закрытие {reason} не исполнилось")
