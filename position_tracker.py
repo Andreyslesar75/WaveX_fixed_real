@@ -337,4 +337,190 @@ class PositionTracker:
             close_order = await self.exchange.close_position(symbol, final_qty)
             
             if not close_order or close_order.get("filled_amount", 0) <= 0:
-                log.error(f"{symbol}: не удалось закрыть позицию {
+                log.error(f"{symbol}: не удалось закрыть позицию {reason}")
+                return None
+            
+            actual_qty = min(
+                close_order.get("filled_amount", 0),
+                final_qty,
+            )
+            
+            # Считаем PnL
+            side = pos.get("side", "LONG")
+            pnl = self._calc_pnl(pos["entry_price"], exit_price, actual_qty, side)
+            
+            pos["realized_pnl"] += pnl
+            pos["closed_qty"] += actual_qty
+            pos["remaining_qty"] -= actual_qty
+            
+            # Если закрыта только часть — не удаляем позицию
+            if pos["remaining_qty"] > 1e-12:
+                log.warning(
+                    f"{symbol}: закрытие {reason} частично: "
+                    f"filled={actual_qty:.6f}, remaining={pos['remaining_qty']:.6f}"
+                )
+                return None
+            
+            # Позиция полностью закрыта
+            self.positions.pop(symbol, None)
+            
+            log.info(
+                f"TRACKER CLOSE {symbol} [{side}] @ {fmt_price(exit_price)} "
+                f"PnL={pnl:+.2f}$ {reason}"
+            )
+            
+            return {
+                "symbol": symbol,
+                "reason": reason,
+                "price": exit_price,
+                "qty": actual_qty,
+                "pnl": pnl,
+                "entry_price": pos["entry_price"],
+                "entry_time": pos["entry_time"],
+                "size_usdt": pos["size_usdt"],
+                "score": pos["score"],
+                "side": side,
+                "mfe": pos.get("mfe", 0.0),
+                "mae": pos.get("mae", 0.0),
+            }
+        
+        finally:
+            if symbol in self.positions:
+                self.positions[symbol].pop("closing", None)
+    
+    # ================================================================
+    # ЧАСТИЧНОЕ ЗАКРЫТИЕ
+    # ================================================================
+    async def _execute_partial_close(
+        self,
+        symbol: str,
+        qty: float,
+        price: float,
+        reason: str,
+    ) -> float:
+        """
+        Частично закрывает позицию.
+        Возвращает реально закрытое количество.
+        """
+        pos = self.positions.get(symbol)
+        if not pos or qty <= 0:
+            return 0.0
+        
+        if pos.get("closing"):
+            return 0.0
+        
+        actual_qty = min(qty, pos["remaining_qty"])
+        if actual_qty <= 0:
+            return 0.0
+        
+        # Закрываем через exchange
+        close_order = await self.exchange.close_position(symbol, actual_qty)
+        
+        if not close_order or close_order.get("filled_amount", 0) <= 0:
+            log.error(f"{symbol}: частичное закрытие {reason} не исполнилось")
+            return 0.0
+        
+        filled = min(close_order.get("filled_amount", 0), actual_qty)
+        
+        # Считаем PnL
+        side = pos.get("side", "LONG")
+        pnl = self._calc_pnl(pos["entry_price"], price, filled, side)
+        
+        pos["realized_pnl"] += pnl
+        pos["closed_qty"] += filled
+        pos["remaining_qty"] -= filled
+        
+        if pos["remaining_qty"] < 1e-12:
+            pos["remaining_qty"] = 0.0
+        
+        log.info(
+            f"{reason} PARTIAL {symbol} qty={filled:.6f} @ {fmt_price(price)} "
+            f"pnl={pnl:+.2f}$ remaining={pos['remaining_qty']:.6f}"
+        )
+        
+        return filled
+    
+    # ================================================================
+    # BREAKEVEN
+    # ================================================================
+    async def _set_breakeven(self, symbol: str, pos: dict):
+        """Перемещает SL в безубыток."""
+        side = pos.get("side", "LONG")
+        is_short = side == "SHORT"
+        
+        if is_short:
+            be_price = pos["entry_price"] * (1 - Config.BREAKEVEN_BUFFER_PCT / 100)
+        else:
+            be_price = pos["entry_price"] * (1 + Config.BREAKEVEN_BUFFER_PCT / 100)
+        
+        improves = (
+            (is_short and be_price < pos["sl_price"])
+            or (not is_short and be_price > pos["sl_price"])
+        )
+        
+        if improves:
+            pos["sl_price"] = be_price
+            pos["breakeven_set"] = True
+            log.info(f"Breakeven set {symbol} @ {fmt_price(be_price)}")
+    
+    # ================================================================
+    # ТРЕЙЛИНГ
+    # ================================================================
+    def _calc_trailing_sl(
+        self,
+        profit_pct: float,
+        side: str,
+        current_price: float,
+    ) -> float:
+        """Считает новый Stop Loss для трейлинга."""
+        step = self.trail_steps[0]
+        for s in self.trail_steps:
+            if profit_pct >= s:
+                step = s
+        
+        offset_pct = Config.TRAILING_STEPS[step]
+        
+        if side == "LONG":
+            return current_price * (1 - offset_pct / 100.0)
+        return current_price * (1 + offset_pct / 100.0)
+    
+    # ================================================================
+    # ВСПОМОГАТЕЛЬНЫЕ
+    # ================================================================
+    def _calc_profit_pct(self, pos: dict, price: float) -> float:
+        """Считает текущую прибыль в процентах."""
+        side = pos.get("side", "LONG")
+        if side == "SHORT":
+            return (pos["entry_price"] - price) / pos["entry_price"] * 100.0
+        return (price - pos["entry_price"]) / pos["entry_price"] * 100.0
+    
+    @staticmethod
+    def _calc_pnl(
+        entry_price: float,
+        exit_price: float,
+        qty: float,
+        side: str = "LONG",
+    ) -> float:
+        """
+        Считает PnL для закрытой части позиции.
+        Учитывает приблизительную комиссию 0.04% на вход и выход.
+        """
+        entry_notional = qty * entry_price
+        exit_notional = qty * exit_price
+        fee_entry = entry_notional * 0.0004
+        fee_exit = exit_notional * 0.0004
+        
+        if side == "SHORT":
+            return entry_notional - exit_notional - fee_entry - fee_exit
+        return exit_notional - entry_notional - fee_entry - fee_exit
+    
+    # ================================================================
+    # ПУБЛИЧНЫЕ МЕТОДЫ
+    # ================================================================
+    def get_open_positions(self) -> List[dict]:
+        """Возвращает список открытых позиций."""
+        return list(self.positions.values())
+    
+    def get_position(self, symbol: str) -> Optional[dict]:
+        """Возвращает позицию по символу или None."""
+        return self.positions.get(symbol)
