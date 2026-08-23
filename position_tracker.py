@@ -1,0 +1,340 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+# ФАЙЛ: position_tracker.py
+# СОХРАНИТЬ КАК: position_tracker.py
+
+Ядро управления позицией.
+Отвечает за:
+- трейлинг (все ступени);
+- TP1 / TP2 (частичное закрытие);
+- breakeven;
+- проверку SL;
+- timeout;
+- MFE / MAE.
+
+НЕ отвечает за:
+- решение "открывать или нет" (это risk_manager);
+- кулдауны и блокировки (это risk_manager);
+- статистику и БД (это risk_manager).
+
+Работает через ExchangeAdapter, не зная, paper это или real.
+Возвращает список событий закрытия, чтобы вызывающий код мог их обработать.
+"""
+import time
+from typing import Dict, List, Optional, Any
+from config import Config
+from exchange_adapter import ExchangeAdapter
+from logger import log, fmt_price
+
+
+class PositionTracker:
+    """
+    Управляет открытыми позициями.
+    Работает через ExchangeAdapter.
+    """
+    
+    def __init__(self, exchange: ExchangeAdapter):
+        self.exchange = exchange
+        # Открытые позиции: symbol -> dict
+        self.positions: Dict[str, dict] = {}
+        # Шаги трейлинга из config
+        self.trail_steps = sorted(Config.TRAILING_STEPS.keys())
+    
+    # ================================================================
+    # ОТКРЫТИЕ ПОЗИЦИИ
+    # ================================================================
+    async def open_position(
+        self,
+        symbol: str,
+        side: str,
+        entry_price: float,
+        qty: float,
+        sl_price: float,
+        tp1_price: float,
+        tp2_price: float,
+        sl_pct: float,
+        tp1_pct: float,
+        tp2_pct: float,
+        size_usdt: float,
+        score: float = 0.0,
+        confidence: str = "MEDIUM",
+        sl_source: str = "unknown",
+    ) -> bool:
+        """
+        Открывает позицию.
+        
+        1. Регистрирует позицию локально.
+        2. Если real-режим — ставит SL/TP через exchange.
+        3. Возвращает True если успешно.
+        """
+        if symbol in self.positions:
+            log.warning(f"{symbol}: позиция уже открыта")
+            return False
+        
+        if qty <= 0 or entry_price <= 0:
+            log.error(f"{symbol}: некорректные параметры qty={qty}, entry_price={entry_price}")
+            return False
+        
+        now = time.time()
+        
+        # Создаём локальную позицию
+        pos = {
+            "symbol": symbol,
+            "side": side,
+            "entry_price": entry_price,
+            "entry_time": now,
+            "quantity": qty,
+            "remaining_qty": qty,
+            "sl_price": sl_price,
+            "sl_pct": sl_pct,
+            "tp1_price": tp1_price,
+            "tp1_pct": tp1_pct,
+            "tp2_price": tp2_price,
+            "tp2_pct": tp2_pct,
+            "score": score,
+            "confidence": confidence,
+            "size_usdt": size_usdt,
+            "highest": entry_price,  # Для LONG — максимум, для SHORT — минимум
+            "breakeven_set": False,
+            "trailing_activated": False,
+            "tp1_done": False,
+            "tp2_done": False,
+            "sl_source": sl_source,
+            "realized_pnl": 0.0,
+            "closed_qty": 0.0,
+            "trail_active": False,
+            "mfe": 0.0,
+            "mae": 0.0,
+            "tp1_closed_qty": 0.0,
+            "closing": False,
+            "last_watch_price": entry_price,
+            # Для real-режима — ID ордеров на бирже
+            "sl_order_id": None,
+            "sl_client_id": None,
+            "tp_order_id": None,
+            "tp_client_id": None,
+        }
+        
+        self.positions[symbol] = pos
+        
+        log.info(
+            f"TRACKER OPEN {symbol} [{side}] @ {fmt_price(entry_price)} "
+            f"qty={qty:.6f} size=${size_usdt:.1f} "
+            f"SL={fmt_price(sl_price)} ({sl_pct:.1f}%) "
+            f"TP1={fmt_price(tp1_price)} ({tp1_pct:.1f}%) "
+            f"TP2={fmt_price(tp2_price)} ({tp2_pct:.1f}%)"
+        )
+        
+        return True
+    
+    # ================================================================
+    # ОБНОВЛЕНИЕ ЦЕН
+    # ================================================================
+    async def update_prices(self, prices: Dict[str, float]) -> List[dict]:
+        """
+        Обновляет цены и проверяет условия закрытия.
+        
+        Возвращает список событий:
+        [
+            {"symbol": "BTC_USDT", "reason": "TP1", "price": 52000, "qty": 0.06, "pnl": 120.0},
+            {"symbol": "ETH_USDT", "reason": "SL", "price": 2800, "qty": 0.5, "pnl": -50.0},
+        ]
+        """
+        events = []
+        now = time.time()
+        
+        for symbol, pos in list(self.positions.items()):
+            price = prices.get(symbol)
+            if not price or price <= 0:
+                continue
+            
+            # Обновляем MFE/MAE
+            side = pos.get("side", "LONG")
+            is_short = side == "SHORT"
+            
+            if is_short:
+                profit_pct = (pos["entry_price"] - price) / pos["entry_price"] * 100.0
+                if price < pos["highest"]:
+                    pos["highest"] = price
+            else:
+                profit_pct = (price - pos["entry_price"]) / pos["entry_price"] * 100.0
+                if price > pos["highest"]:
+                    pos["highest"] = price
+            
+            if profit_pct > pos.get("mfe", 0.0):
+                pos["mfe"] = profit_pct
+            
+            adverse_pct = -profit_pct
+            if adverse_pct > pos.get("mae", 0.0):
+                pos["mae"] = adverse_pct
+            
+            # Проверяем условия закрытия
+            event = await self._check_conditions(symbol, pos, price, now)
+            if event:
+                events.append(event)
+            
+            # Обновляем последнюю цену
+            if symbol in self.positions:
+                self.positions[symbol]["last_watch_price"] = price
+        
+        return events
+    
+    async def _check_conditions(
+        self,
+        symbol: str,
+        pos: dict,
+        price: float,
+        now: float,
+    ) -> Optional[dict]:
+        """
+        Проверяет все условия закрытия для позиции.
+        Возвращает событие закрытия или None.
+        """
+        side = pos.get("side", "LONG")
+        is_short = side == "SHORT"
+        
+        # ================================================================
+        # 1. TIMEOUT
+        # ================================================================
+        timeout_sec = Config.POSITION_TIMEOUT_HOURS * 3600
+        if now - pos["entry_time"] > timeout_sec:
+            return await self._close_position(symbol, price, "TIMEOUT")
+        
+        # ================================================================
+        # 2. ТРЕЙЛИНГ
+        # ================================================================
+        profit_pct = self._calc_profit_pct(pos, price)
+        
+        if profit_pct >= Config.TRAILING_ACTIVATION_PCT:
+            new_sl = self._calc_trailing_sl(profit_pct, side, price)
+            improves = (
+                (not is_short and new_sl > pos["sl_price"])
+                or (is_short and new_sl < pos["sl_price"])
+            )
+            if improves:
+                pos["sl_price"] = new_sl
+                if not pos.get("trail_active", False):
+                    pos["trail_active"] = True
+                    log.info(
+                        f"Trailing activated {symbol} [{side}] "
+                        f"profit={profit_pct:.2f}% SL={fmt_price(new_sl)}"
+                    )
+                else:
+                    log.info(
+                        f"Trailing update {symbol} [{side}]: "
+                        f"SL -> {fmt_price(new_sl)} profit={profit_pct:.2f}%"
+                    )
+        
+        # ================================================================
+        # 3. TP1
+        # ================================================================
+        tp1_condition = (
+            (is_short and price <= pos["tp1_price"])
+            or (not is_short and price >= pos["tp1_price"])
+        )
+        
+        if not pos.get("tp1_done", False) and tp1_condition:
+            target_tp1_qty = pos["quantity"] * Config.TP1_SIZE_FRAC
+            tp1_closed_qty = pos.get("tp1_closed_qty", 0.0)
+            need_qty = target_tp1_qty - tp1_closed_qty
+            
+            if need_qty > 0:
+                closed_qty = await self._execute_partial_close(
+                    symbol, need_qty, pos["tp1_price"], "TP1"
+                )
+                if closed_qty > 0:
+                    pos["tp1_closed_qty"] = tp1_closed_qty + closed_qty
+                    
+                    if (
+                        pos["tp1_closed_qty"] >= target_tp1_qty * 0.999
+                        or pos["remaining_qty"] <= target_tp1_qty * 0.01
+                    ):
+                        pos["tp1_done"] = True
+                        
+                        # После TP1 — breakeven
+                        await self._set_breakeven(symbol, pos)
+                        
+                        pnl = self._calc_pnl(pos["entry_price"], pos["tp1_price"], closed_qty, side)
+                        return {
+                            "symbol": symbol,
+                            "reason": "TP1",
+                            "price": pos["tp1_price"],
+                            "qty": closed_qty,
+                            "pnl": pnl,
+                        }
+        
+        # ================================================================
+        # 4. TP2
+        # ================================================================
+        tp2_condition = (
+            (is_short and price <= pos["tp2_price"])
+            or (not is_short and price >= pos["tp2_price"])
+        )
+        
+        if not pos.get("tp2_done", False) and tp2_condition:
+            return await self._close_position(symbol, price, "TP2")
+        
+        # ================================================================
+        # 5. STOP LOSS
+        # ================================================================
+        sl_condition = (
+            (is_short and price >= pos["sl_price"])
+            or (not is_short and price <= pos["sl_price"])
+        )
+        
+        if sl_condition:
+            # Определяем причину
+            if pos.get("trail_active", False):
+                sl_reason = "TRAIL_SL"
+            elif pos.get("breakeven_set", False):
+                sl_reason = "BE_SL"
+            else:
+                sl_reason = "SL"
+            
+            return await self._close_position(symbol, price, sl_reason)
+        
+        # ================================================================
+        # 6. Обычный Breakeven (без TP1)
+        # ================================================================
+        if (
+            not pos.get("breakeven_set", False)
+            and profit_pct >= Config.BREAKEVEN_ACTIVATION_PCT
+        ):
+            await self._set_breakeven(symbol, pos)
+        
+        return None
+    
+    # ================================================================
+    # ЗАКРЫТИЕ ПОЗИЦИИ
+    # ================================================================
+    async def _close_position(
+        self,
+        symbol: str,
+        exit_price: float,
+        reason: str,
+    ) -> Optional[dict]:
+        """
+        Полностью закрывает позицию.
+        Возвращает событие закрытия.
+        """
+        pos = self.positions.get(symbol)
+        if not pos:
+            return None
+        
+        if pos.get("closing"):
+            return None
+        
+        final_qty = pos["remaining_qty"]
+        if final_qty <= 0:
+            self.positions.pop(symbol, None)
+            return None
+        
+        pos["closing"] = True
+        
+        try:
+            # Закрываем через exchange
+            close_order = await self.exchange.close_position(symbol, final_qty)
+            
+            if not close_order or close_order.get("filled_amount", 0) <= 0:
+                log.error(f"{symbol}: не удалось закрыть позицию {
