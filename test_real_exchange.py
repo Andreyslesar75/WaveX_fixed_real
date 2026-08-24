@@ -39,10 +39,10 @@ async def main():
         return
 
     test_symbol = input(
-        "Введите символ для теста (например, RLC_USDT): "
+        "Введите символ для теста (например, LDO_USDT): "
     ).strip()
     if not test_symbol:
-        test_symbol = "RLC_USDT"
+        test_symbol = "LDO_USDT"
 
     # ====== ИНИЦИАЛИЗАЦИЯ ======
     async with aiohttp.ClientSession() as session:

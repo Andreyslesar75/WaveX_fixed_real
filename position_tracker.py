@@ -209,6 +209,11 @@ class PositionTracker:
         timeout_sec = Config.POSITION_TIMEOUT_HOURS * 3600
         if now - pos["entry_time"] > timeout_sec:
             return await self._close_position(symbol, price, "TIMEOUT")
+
+        hold_minutes = (now - pos["entry_time"]) / 60.0
+        if hold_minutes >= Config.VOL_DECAY_CHECK_AFTER_MIN:
+            if await self._check_volume_decay(symbol):
+                return await self._close_position(symbol, price, "VOL_DECAY")
         
         # ================================================================
         # 2. ТРЕЙЛИНГ
@@ -265,13 +270,23 @@ class PositionTracker:
                         await self._set_breakeven(symbol, pos)
                         
                         pnl = self._calc_pnl(pos["entry_price"], pos["tp1_price"], closed_qty, side)
+                       
                         return {
-                            "symbol": symbol,
-                            "reason": "TP1",
-                            "price": pos["tp1_price"],
-                            "qty": closed_qty,
-                            "pnl": pnl,
-                        }
+                                "symbol": symbol,
+                                "reason": "TP1",
+                                "price": pos["tp1_price"],
+                                "qty": closed_qty,
+                                "pnl": pnl,
+                                "entry_price": pos["entry_price"],
+                                "entry_time": pos["entry_time"],
+                                "size_usdt": pos["size_usdt"],
+                                "score": pos["score"],
+                                "side": side,
+                                "mfe": pos.get("mfe", 0.0),
+                                "mae": pos.get("mae", 0.0),
+                                "sl_pct": pos.get("sl_pct", 0.0),
+                                "tp_pct": pos.get("tp1_pct", 0.0),
+                            }
         
         # ================================================================
         # 4. TP2
@@ -391,6 +406,8 @@ class PositionTracker:
                 "side": side,
                 "mfe": pos.get("mfe", 0.0),
                 "mae": pos.get("mae", 0.0),
+                "sl_pct": pos.get("sl_pct", 0.0),
+                "tp_pct": pos.get("tp1_pct", 0.0),
             }
         
         finally:
@@ -533,3 +550,34 @@ class PositionTracker:
     def get_position(self, symbol: str) -> Optional[dict]:
         """Возвращает позицию по символу или None."""
         return self.positions.get(symbol)
+
+
+    async def _check_volume_decay(self, symbol: str) -> bool:
+        """Проверяет угасание объёма."""
+        w = Config.VOL_DECAY_WINDOW_MIN
+        p = Config.VOL_DECAY_PRIOR_WINDOW_MIN
+        limit = w + p + 1
+        try:
+            klines = await self.exchange.get_klines(symbol, "1m", limit)
+        except Exception:
+            return False
+        if not klines or len(klines) < limit:
+            return False
+        volumes = [float(k[1]) for k in klines]
+        recent = volumes[-w:]
+        prior = volumes[-(w + p):-w]
+        if not prior:
+            return False
+        prior_avg = sum(prior) / len(prior)
+        if prior_avg <= 0:
+            return False
+        recent_avg = sum(recent) / len(recent)
+        ratio = recent_avg / prior_avg
+        if ratio < Config.VOL_DECAY_RATIO:
+            log.info(
+                f"{symbol}: объём угас "
+                f"(recent/prior={ratio:.2f} < {Config.VOL_DECAY_RATIO}) "
+                f"за последние {w} мин — закрываю по VOL_DECAY"
+            )
+            return True
+        return False

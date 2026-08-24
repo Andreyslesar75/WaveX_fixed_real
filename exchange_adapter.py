@@ -94,6 +94,11 @@ class ExchangeAdapter(ABC):
         """Возвращает доступный баланс."""
         pass
 
+    @abstractmethod
+    async def get_klines(self, symbol: str, interval: str, limit: int) -> Optional[list]:
+        """Возвращает свечи для технического анализа."""
+        pass
+
 
 class PaperExchange(ExchangeAdapter):
     """
@@ -110,6 +115,10 @@ class PaperExchange(ExchangeAdapter):
         self._balance = 1000.0  # Начальный баланс из config
         # Счётчик ордеров
         self._order_counter = 1000
+
+    async def get_klines(self, symbol: str, interval: str, limit: int) -> Optional[list]:
+        """Для paper-режима возвращаем None (проверка объёма пропускается) или мок."""
+        return None
     
     async def place_market_buy(self, symbol: str, qty: float, price: float = 0.0) -> Optional[dict]:
         """Эмулирует открытие LONG."""
@@ -287,6 +296,10 @@ class RealExchange(ExchangeAdapter):
         self.pm = position_manager
         # Локальный кэш algo-ордеров: symbol -> {sl: {...}, tp: {...}}
         self._algo_orders: Dict[str, dict] = {}
+
+    async def get_klines(self, symbol: str, interval: str, limit: int) -> Optional[list]:
+        """Делегирует запрос к api.py."""
+        return await self.api.get_klines(symbol, interval, limit)
     
     async def place_market_buy(self, symbol: str, qty: float, price: float = 0.0) -> Optional[dict]:
         """
