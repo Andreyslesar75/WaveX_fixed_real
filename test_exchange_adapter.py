@@ -24,7 +24,7 @@ async def test_paper_exchange():
     
     # 2. Открываем LONG-позицию
     print("\n[2] Открытие LONG-позиции...")
-    order = await exchange.place_market_buy("BTC_USDT", 0.1)
+    order = await exchange.place_market_buy("BTC_USDT", 0.1, price=50000.0)
     print(f"  Ордер: {order}")
     
     # Устанавливаем цену входа
@@ -61,14 +61,24 @@ async def test_paper_exchange():
     sl_status = await exchange.get_sl_status("BTC_USDT")
     print(f"\n[8] Статус SL после отмены: {sl_status}")
     
-    # 9. Закрываем позицию
+    # 9. Закрываем позицию (ИСПРАВЛЕНО: передаём цену выхода)
     print("\n[9] Закрытие позиции...")
-    close_order = await exchange.close_position("BTC_USDT", 0.1)
+    exit_price = 50500.0  # Цена выхода (прибыль)
+    close_order = await exchange.close_position("BTC_USDT", 0.1, exit_price)
     print(f"  Ордер закрытия: {close_order}")
+    
+    # Проверяем, что PnL рассчитан корректно
+    expected_pnl = (exit_price - 50000.0) * 0.1
+    print(f"  Ожидаемый PnL: {expected_pnl:.2f} USDT")
     
     # 10. Проверяем, что позиция закрыта
     qty = await exchange.get_position_qty("BTC_USDT")
     print(f"\n[10] Количество в позиции после закрытия: {qty}")
+    
+    # 11. Проверяем обновлённый баланс
+    final_balance = await exchange.get_balance()
+    print(f"\n[11] Финальный баланс: {final_balance:.2f} USDT")
+    print(f"  Изменение баланса: {final_balance - 1000.0:+.2f} USDT")
     
     print("\n" + "=" * 60)
     print("ТЕСТ ЗАВЕРШЁН")

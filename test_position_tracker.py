@@ -181,12 +181,12 @@ async def test_position_tracker():
         size_usdt=3000.0,
     )
     
-    # Прогоняем через серию цен для активации трейлинга
-    print("  Прогон через 3100, 3200, 3300...")
+    # Прогоняем цену до 3100 — это активирует трейлинг (profit 3.33% > 3.0%),
+    # но НЕ сработает TP1 (tp1_price=3120 > 3100)
+    print("  Прогон через 3100 (трейлинг активируется, TP1 ещё не сработал)...")
     await tracker.update_prices({"ETH_USDT": 3100.0})
-    await tracker.update_prices({"ETH_USDT": 3200.0})
-    await tracker.update_prices({"ETH_USDT": 3300.0})
     
+    # Проверяем, что трейлинг активирован
     pos = tracker.get_position("ETH_USDT")
     if pos and pos.get("trail_active"):
         print(f"  ✓ Трейлинг активирован")
@@ -199,6 +199,20 @@ async def test_position_tracker():
             return
     else:
         print(f"  ✗ ОШИБКА: трейлинг не активирован")
+        return
+    
+    # Теперь прогоняем дальше — TP1 и TP2 сработают, позиция закроется
+    print("  Прогон через 3120 (TP1), 3200, 3300 (TP2)...")
+    await tracker.update_prices({"ETH_USDT": 3120.0})
+    await tracker.update_prices({"ETH_USDT": 3200.0})
+    await tracker.update_prices({"ETH_USDT": 3300.0})
+    
+    # Проверяем, что позиция закрылась через TP2
+    pos = tracker.get_position("ETH_USDT")
+    if pos is None:
+        print(f"  ✓ Позиция закрыта через TP2")
+    else:
+        print(f"  ✗ ОШИБКА: позиция всё ещё открыта")
         return
     
     # Закрываем позицию вручную для чистоты

@@ -39,10 +39,10 @@ async def main():
         return
 
     test_symbol = input(
-        "Введите символ для теста (например, LDO_USDT): "
+        "Введите символ для теста (например, RLC_USDT): "
     ).strip()
     if not test_symbol:
-        test_symbol = "LDO_USDT"
+        test_symbol = "RLC_USDT"
 
     # ====== ИНИЦИАЛИЗАЦИЯ ======
     async with aiohttp.ClientSession() as session:
@@ -61,9 +61,18 @@ async def main():
         balance = await exchange.get_balance("USDT")
         print(f"  ✓ Доступно: {balance:.4f} USDT")
 
-        # [2] Открытие LONG-позиции
+        # [2] Открытие LONG-позиции (~10 USDT)
         print(f"\n[2] Открытие LONG-позиции по {test_symbol} через адаптер...")
-        order = await exchange.place_market_buy(test_symbol, 10.0)
+        price = await exchange.get_last_price(test_symbol)
+        if not price:
+            print("  ✗ ОШИБКА: не удалось получить цену")
+            return
+        
+        # Конвертируем целевые USDT в количество монет
+        target_usdt = 10.0
+        qty = target_usdt / price
+        
+        order = await exchange.place_market_buy(test_symbol, qty, price)
         if not order or order.get("filled_amount", 0) <= 0:
             print("  ✗ ОШИБКА: не удалось открыть позицию")
             return
@@ -71,14 +80,13 @@ async def main():
         filled_qty = order.get("filled_amount")
         avg_price = order.get("avg_price")
         print(f"  ✓ Позиция открыта: qty={filled_qty}, avg_price={avg_price}")
-
         await asyncio.sleep(1.5)
 
         # [3] Количество в позиции через адаптер
         print("\n[3] Количество в позиции через адаптер:")
-        qty = await exchange.get_position_qty(test_symbol)
-        print(f"  ✓ qty={qty}")
-        if qty <= 0:
+        pos_qty = await exchange.get_position_qty(test_symbol)
+        print(f"  ✓ qty={pos_qty}")
+        if pos_qty <= 0:
             print("  ✗ ОШИБКА: позиция не найдена")
             return
 
@@ -91,19 +99,17 @@ async def main():
         else:
             print("  ✗ ОШИБКА: SL не установлен")
             return
-
         await asyncio.sleep(1.0)
 
         # [5] Постановка TP через адаптер
         tp_price = round(avg_price * 1.03, 8)  # +3%
-        print(f"\n[5] Постановка TP через адаптер (цена={tp_price}, qty={qty})...")
-        tp_order = await exchange.place_tp(test_symbol, tp_price, qty)
+        print(f"\n[5] Постановка TP через адаптер (цена={tp_price}, qty={pos_qty})...")
+        tp_order = await exchange.place_tp(test_symbol, tp_price, pos_qty)
         if tp_order:
             print(f"  ✓ TP установлен: order_id={tp_order.get('order_id')}")
         else:
             print("  ✗ ОШИБКА: TP не установлен")
             return
-
         await asyncio.sleep(1.0)
 
         # [6] Проверка статуса SL через адаптер
@@ -119,7 +125,6 @@ async def main():
         cancel_result = await exchange.cancel_sl_tp(test_symbol)
         print(f"  SL отменён: {'✓' if cancel_result.get('sl') else '✗'}")
         print(f"  TP отменён: {'✓' if cancel_result.get('tp') else '✗'}")
-
         await asyncio.sleep(1.0)
 
         # [8] Проверка статуса SL после отмены
@@ -132,13 +137,12 @@ async def main():
 
         # [9] Закрытие позиции через адаптер
         print("\n[9] Закрытие позиции через адаптер...")
-        close_order = await exchange.close_position(test_symbol, qty)
+        close_order = await exchange.close_position(test_symbol, pos_qty, avg_price)
         if close_order and close_order.get("filled_amount", 0) > 0:
             print(f"  ✓ Позиция закрыта: qty={close_order.get('filled_amount')}")
         else:
             print("  ✗ ОШИБКА: не удалось закрыть позицию")
             return
-
         await asyncio.sleep(1.5)
 
         # [10] Финальная проверка
@@ -156,15 +160,13 @@ async def main():
         print("✅ ТЕСТ RealExchange ПРОЙДЕН УСПЕШНО")
         print("=" * 60)
         print("\nВсе методы адаптера работают корректно:")
-        print("  ✓ place_market_buy")
-        print("  ✓ place_market_sell (через close_position)")
-        print("  ✓ place_sl")
-        print("  ✓ place_tp")
-        print("  ✓ get_sl_status")
+        print("  ✓ place_market_buy (с конвертацией qty в quote_qty)")
+        print("  ✓ close_position (с передачей цены)")
+        print("  ✓ place_sl / place_tp")
+        print("  ✓ get_sl_status (через кэш algo-ордеров)")
         print("  ✓ cancel_sl_tp")
         print("  ✓ get_position_qty")
         print("  ✓ get_balance")
-        print("\nТеперь можно строить PositionTracker поверх ExchangeAdapter.")
 
 
 if __name__ == "__main__":
