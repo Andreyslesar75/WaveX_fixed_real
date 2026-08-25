@@ -70,11 +70,15 @@ class PositionTracker:
             log.error(f"{symbol}: некорректные параметры qty={qty}, entry_price={entry_price}")
             return False
         
-        # [НОВОЕ] Регистрируем позицию в exchange
+        # [НОВОЕ] Регистрируем позицию в exchange, передавая цены для защиты
         if side == "LONG":
-            order = await self.exchange.place_market_buy(symbol, qty, price=entry_price)
+            order = await self.exchange.place_market_buy(
+                symbol, qty, price=entry_price, sl_price=sl_price, tp_price=tp1_price
+            )
         else:
-            order = await self.exchange.place_market_sell(symbol, qty, price=entry_price)
+            order = await self.exchange.place_market_sell(
+                symbol, qty, price=entry_price, sl_price=sl_price, tp_price=tp1_price
+            )
         
         if not order or order.get("filled_amount", 0) <= 0:
             log.error(f"{symbol}: не удалось открыть позицию через exchange")
@@ -92,9 +96,9 @@ class PositionTracker:
         pos = {
             "symbol": symbol,
             "side": side,
-            "entry_price": actual_price,  # [ИСПРАВЛЕНО] используем реальную цену
+            "entry_price": actual_price,
             "entry_time": now,
-            "quantity": actual_qty,        # [ИСПРАВЛЕНО] используем реальное количество
+            "quantity": actual_qty,
             "remaining_qty": actual_qty,
             "sl_price": sl_price,
             "sl_pct": sl_pct,
@@ -119,10 +123,11 @@ class PositionTracker:
             "tp1_closed_qty": 0.0,
             "closing": False,
             "last_watch_price": actual_price,
-            "sl_order_id": None,
-            "sl_client_id": None,
-            "tp_order_id": None,
-            "tp_client_id": None,
+            # [НОВОЕ] Сохраняем ID защитных ордеров, полученных от RealExchange
+            "sl_order_id": order.get("sl_order_id"),
+            "sl_client_id": order.get("sl_client_id"),
+            "tp_order_id": order.get("tp_order_id"),
+            "tp_client_id": order.get("tp_client_id"),
         }
         
         self.positions[symbol] = pos

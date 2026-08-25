@@ -76,6 +76,7 @@ class PositionManager:
         self._trades_today = 0
         self._daily_loss_limit = -abs(float(Config.DAILY_MAX_LOSS_USDT))
 
+
     # ================================================================
     # БАЗОВЫЕ ФУНКЦИИ
     # ================================================================

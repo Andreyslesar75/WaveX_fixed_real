@@ -99,6 +99,30 @@ class ExchangeAdapter(ABC):
         """Возвращает свечи для технического анализа."""
         pass
 
+    @abstractmethod
+    async def place_market_buy(
+        self, 
+        symbol: str, 
+        qty: float, 
+        price: float, 
+        sl_price: float = 0.0, 
+        tp_price: float = 0.0
+    ) -> Optional[dict]:
+        """Открывает LONG рыночным ордером и (в real-режиме) ставит защиту."""
+        pass
+
+    @abstractmethod
+    async def place_market_sell(
+        self, 
+        symbol: str, 
+        qty: float, 
+        price: float, 
+        sl_price: float = 0.0, 
+        tp_price: float = 0.0
+    ) -> Optional[dict]:
+        """Открывает SHORT рыночным ордером и (в real-режиме) ставит защиту."""
+        pass
+
 
 class PaperExchange(ExchangeAdapter):
     """
@@ -120,7 +144,7 @@ class PaperExchange(ExchangeAdapter):
         """Для paper-режима возвращаем None (проверка объёма пропускается) или мок."""
         return None
     
-    async def place_market_buy(self, symbol: str, qty: float, price: float = 0.0) -> Optional[dict]:
+    async def place_market_buy(self, symbol: str, qty: float, price: float = 0.0, sl_price: float = 0.0, tp_price: float = 0.0) -> Optional[dict]:
         """Эмулирует открытие LONG."""
         self._positions[symbol] = {
             "qty": qty,
@@ -136,7 +160,7 @@ class PaperExchange(ExchangeAdapter):
             "client_order_id": f"paper_{uuid.uuid4().hex[:16]}",
         }
 
-    async def place_market_sell(self, symbol: str, qty: float, price: float = 0.0) -> Optional[dict]:
+    async def place_market_sell(self, symbol: str, qty: float, price: float = 0.0, sl_price: float = 0.0, tp_price: float = 0.0) -> Optional[dict]:
         """Эмулирует открытие SHORT."""
         self._positions[symbol] = {
             "qty": qty,
@@ -301,35 +325,113 @@ class RealExchange(ExchangeAdapter):
         """Делегирует запрос к api.py."""
         return await self.api.get_klines(symbol, interval, limit)
     
-    async def place_market_buy(self, symbol: str, qty: float, price: float = 0.0) -> Optional[dict]:
-        """
-        Открывает LONG через api.py.
-        qty — количество монет.
-        price — используется для конвертации в USDT (если передан).
-        """
-        # Если цена не передана, получаем текущую
-        if price <= 0:
-            price = await self.api.get_last_price(symbol)
-            if not price:
-                return None
+    async def place_market_buy(
+        self, 
+        symbol: str, 
+        qty: float, 
+        price: float = 0.0, 
+        sl_price: float = 0.0, 
+        tp_price: float = 0.0
+    ) -> Optional[dict]:
+        """Открывает LONG и сразу ставит SL/TP. При неудаче — аварийное закрытие."""
+        quote_qty = qty * price if price > 0 else qty
+        order = await self.api.place_market_buy(symbol, quote_qty)
         
-        # Конвертируем qty монет в quote_qty (USDT)
-        quote_qty = qty * price
-        return await self.api.place_market_buy(symbol, quote_qty)
+        if not order or order.get("filled_amount", 0) <= 0:
+            return None
 
-    async def place_market_sell(self, symbol: str, qty: float, price: float = 0.0) -> Optional[dict]:
-        """
-        Открывает SHORT через api.py.
-        qty — количество монет.
-        price — используется для конвертации в USDT (если передан).
-        """
-        if price <= 0:
-            price = await self.api.get_last_price(symbol)
-            if not price:
-                return None
+        executed_qty = order.get("filled_amount")
+        avg_price = order.get("avg_price", price)
+
+        # --- РЕАЛЬНАЯ ЗАЩИТА (Аварийная ветка) ---
+        if sl_price > 0 and tp_price > 0:
+            protect_result = await self.pm.set_protective_orders(
+                symbol=symbol,
+                sl_price=sl_price,
+                tp_price=tp_price,
+                quantity=executed_qty,
+            )
+            sl_order = protect_result.get("sl")
+            tp_order = protect_result.get("tp")
+
+            if not sl_order or not tp_order:
+                log.error(
+                    f"{symbol}: АВАРИЙНАЯ ВЕТКА — защитные ордера не поставились "
+                    f"(SL={'ok' if sl_order else 'FAIL'}, TP={'ok' if tp_order else 'FAIL'}). "
+                    f"Форс-закрытие позиции."
+                )
+                # Отменяем то, что успело поставиться
+                if sl_order or tp_order:
+                    await self.pm.cancel_sl_tp(
+                        symbol,
+                        sl_order_id=sl_order.get("order_id") if sl_order else None,
+                        tp_order_id=tp_order.get("order_id") if tp_order else None,
+                        sl_client_id=sl_order.get("client_order_id") if sl_order else None,
+                        tp_client_id=tp_order.get("client_order_id") if tp_order else None,
+                    )
+                # Форс-закрытие LONG позиции (продажа)
+                await self.api.place_market_sell(symbol, executed_qty)
+                return None  # Возвращаем None, чтобы tracker знал, что открытие провалилось
+
+            # Сохраняем ID ордеров в ответ, чтобы tracker мог их запомнить
+            order["sl_order_id"] = sl_order.get("order_id")
+            order["sl_client_id"] = sl_order.get("client_order_id")
+            order["tp_order_id"] = tp_order.get("order_id")
+            order["tp_client_id"] = tp_order.get("client_order_id")
+
+        return order
+
+    async def place_market_sell(
+        self, 
+        symbol: str, 
+        qty: float, 
+        price: float = 0.0, 
+        sl_price: float = 0.0, 
+        tp_price: float = 0.0
+    ) -> Optional[dict]:
+        """Открывает SHORT и сразу ставит SL/TP. При неудаче — аварийное закрытие."""
+        quote_qty = qty * price if price > 0 else qty
+        order = await self.api.place_market_sell_open(symbol, quote_qty)
         
-        quote_qty = qty * price
-        return await self
+        if not order or order.get("filled_amount", 0) <= 0:
+            return None
+
+        executed_qty = order.get("filled_amount")
+        avg_price = order.get("avg_price", price)
+
+        # --- РЕАЛЬНАЯ ЗАЩИТА (Аварийная ветка) ---
+        if sl_price > 0 and tp_price > 0:
+            protect_result = await self.pm.set_protective_orders(
+                symbol=symbol,
+                sl_price=sl_price,
+                tp_price=tp_price,
+                quantity=executed_qty,
+            )
+            sl_order = protect_result.get("sl")
+            tp_order = protect_result.get("tp")
+
+            if not sl_order or not tp_order:
+                log.error(
+                    f"{symbol}: АВАРИЙНАЯ ВЕТКА — защитные ордера не поставились. Форс-закрытие."
+                )
+                if sl_order or tp_order:
+                    await self.pm.cancel_sl_tp(
+                        symbol,
+                        sl_order_id=sl_order.get("order_id") if sl_order else None,
+                        tp_order_id=tp_order.get("order_id") if tp_order else None,
+                        sl_client_id=sl_order.get("client_order_id") if sl_order else None,
+                        tp_client_id=tp_order.get("client_order_id") if tp_order else None,
+                    )
+                # Форс-закрытие SHORT позиции (покупка)
+                await self.api.place_market_buy_close(symbol, executed_qty)
+                return None
+
+            order["sl_order_id"] = sl_order.get("order_id")
+            order["sl_client_id"] = sl_order.get("client_order_id")
+            order["tp_order_id"] = tp_order.get("order_id")
+            order["tp_client_id"] = tp_order.get("client_order_id")
+
+        return order
     
     async def close_position(self, symbol: str, qty: float, price: float) -> Optional[dict]:
         """
