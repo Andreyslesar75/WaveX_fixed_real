@@ -401,32 +401,38 @@ class PositionTracker:
         pos["closing"] = True
 
         try:
-            # [НОВОЕ] Отменяем защитные ордера на бирже ПЕРЕД закрытием
-            sl_id = pos.get("sl_order_id")
-            tp_id = pos.get("tp_order_id")
-            sl_cid = pos.get("sl_client_id")
-            tp_cid = pos.get("tp_client_id")
+            # [НОВОЕ] Проверяем, есть ли позиция на бирже
+            pos_info = await self.exchange.get_position_info(symbol)
+            has_position = pos_info is not None and abs(pos_info.get("position_amt", 0)) > 0
             
-            if sl_id or tp_id:
-                try:
-                    cancel_result = await self.exchange.cancel_sl_tp(
-                        symbol,
-                        sl_order_id=sl_id,
-                        tp_order_id=tp_id,
-                        sl_client_id=sl_cid,
-                        tp_client_id=tp_cid,
-                    )
-                    log.info(
-                        f"{symbol}: защитные ордера отменены "
-                        f"(SL={'✓' if cancel_result.get('sl') else '✗'}, "
-                        f"TP={'✓' if cancel_result.get('tp') else '✗'})"
-                    )
-                except Exception as e:
-                    log.error(f"{symbol}: ошибка отмены защитных ордеров: {e}")
-
+            if not has_position:
+                # Позиции нет на бирже - удаляем локально
+                log.info(f"{symbol}: позиция уже закрыта на бирже, удаляем локально")
+                self.positions.pop(symbol, None)
+                
+                # Считаем PnL
+                side = pos.get("side", "LONG")
+                pnl = self._calc_pnl(pos["entry_price"], exit_price, final_qty, side)
+                
+                return {
+                    "symbol": symbol,
+                    "reason": reason,
+                    "price": exit_price,
+                    "qty": final_qty,
+                    "pnl": pnl,
+                    "entry_price": pos["entry_price"],
+                    "entry_time": pos["entry_time"],
+                    "size_usdt": pos["size_usdt"],
+                    "score": pos["score"],
+                    "side": side,
+                    "mfe": pos.get("mfe", 0.0),
+                    "mae": pos.get("mae", 0.0),
+                    "sl_pct": pos.get("sl_pct", 0.0),
+                    "tp_pct": pos.get("tp1_pct", 0.0),
+                }
+            
             # Закрываем через exchange
             close_order = await self.exchange.close_position(symbol, final_qty, exit_price)
-            
             if not close_order or close_order.get("filled_amount", 0) <= 0:
                 log.error(f"{symbol}: не удалось закрыть позицию {reason}")
                 return None

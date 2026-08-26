@@ -80,6 +80,14 @@ class ExchangeAdapter(ABC):
     async def get_position_qty(self, symbol: str) -> float:
         """Возвращает количество монет в позиции (0 если позиции нет)."""
         pass
+
+    @abstractmethod
+    async def get_position_info(self, symbol: str) -> Optional[dict]:
+        """
+        Возвращает информацию о позиции на бирже.
+        Если позиции нет — возвращает None.
+        """
+        pass
     
     @abstractmethod
     async def get_sl_status(self, symbol: str) -> Optional[str]:
@@ -289,6 +297,16 @@ class PaperExchange(ExchangeAdapter):
         if symbol in self._positions:
             return self._positions[symbol]["qty"]
         return 0.0
+
+    async def get_position_info(self, symbol: str) -> Optional[dict]:
+        """Возвращает информацию о виртуальной позиции."""
+        if symbol in self._positions:
+            return {
+                "symbol": symbol,
+                "position_amt": self._positions[symbol]["qty"],
+                "entry_price": self._positions[symbol]["entry_price"],
+            }
+        return None
     
     async def get_sl_status(self, symbol: str) -> Optional[str]:
         """Проверяет статус виртуального SL."""
@@ -491,37 +509,54 @@ class RealExchange(ExchangeAdapter):
         return order
     
     async def cancel_sl_tp(
-        self, 
-        symbol: str, 
+        self,
+        symbol: str,
         sl_order_id: Optional[int] = None,
         tp_order_id: Optional[int] = None,
         sl_client_id: Optional[str] = None,
         tp_client_id: Optional[str] = None,
     ) -> Dict[str, bool]:
-        """Отменяет SL/TP через position_manager.py и удаляет из кэша."""
-        # Если ID не переданы явно, берём из кэша
-        cached = self._algo_orders.get(symbol, {})
-        if sl_order_id is None and "sl" in cached:
-            sl_order_id = cached["sl"]["order_id"]
-            sl_client_id = cached["sl"]["client_order_id"]
-        if tp_order_id is None and "tp" in cached:
-            tp_order_id = cached["tp"]["order_id"]
-            tp_client_id = cached["tp"]["client_order_id"]
+        """Отменяет SL и/или TP по их ID."""
+        result = {"sl": False, "tp": False}
         
-        result = await self.pm.cancel_sl_tp(
-            symbol, sl_order_id, tp_order_id, sl_client_id, tp_client_id
-        )
-        
-        # Удаляем из кэша успешно отменённые ордера
-        if result.get("sl") and symbol in self._algo_orders:
-            self._algo_orders[symbol].pop("sl", None)
-        if result.get("tp") and symbol in self._algo_orders:
-            self._algo_orders[symbol].pop("tp", None)
-        
-        # Если кэш символа пустой, удаляем его целиком
-        if symbol in self._algo_orders and not self._algo_orders[symbol]:
-            del self._algo_orders[symbol]
-        
+        if sl_order_id is not None and sl_client_id is not None:
+            try:
+                ok = await self.api.cancel_order(
+                    symbol, sl_order_id, client_order_id=sl_client_id, is_algo=True
+                )
+                result["sl"] = ok
+                if ok:
+                    log.info(f"{symbol}: SL ордер {sl_order_id} отменён")
+                else:
+                    # [ИСПРАВЛЕНО] Если ордер не найден, считаем его уже исполненным
+                    log.debug(f"{symbol}: SL ордер {sl_order_id} уже не существует (исполнен или отменён)")
+                    result["sl"] = True  # Считаем успешным
+            except Exception as e:
+                # [ИСПРАВЛЕНО] Игнорируем ошибку -2011 (ордер уже не существует)
+                if "-2011" in str(e):
+                    log.debug(f"{symbol}: SL ордер {sl_order_id} уже не существует")
+                    result["sl"] = True
+                else:
+                    log.error(f"{symbol}: ошибка отмены SL: {e}")
+
+        if tp_order_id is not None and tp_client_id is not None:
+            try:
+                ok = await self.api.cancel_order(
+                    symbol, tp_order_id, client_order_id=tp_client_id, is_algo=True
+                )
+                result["tp"] = ok
+                if ok:
+                    log.info(f"{symbol}: TP ордер {tp_order_id} отменён")
+                else:
+                    log.debug(f"{symbol}: TP ордер {tp_order_id} уже не существует")
+                    result["tp"] = True
+            except Exception as e:
+                if "-2011" in str(e):
+                    log.debug(f"{symbol}: TP ордер {tp_order_id} уже не существует")
+                    result["tp"] = True
+                else:
+                    log.error(f"{symbol}: ошибка отмены TP: {e}")
+
         return result
     
     async def get_last_price(self, symbol: str) -> Optional[float]:
@@ -534,6 +569,10 @@ class RealExchange(ExchangeAdapter):
         if pos_info:
             return abs(pos_info["position_amt"])
         return 0.0
+
+    async def get_position_info(self, symbol: str) -> Optional[dict]:
+        """Возвращает информацию о позиции через position_manager."""
+        return await self.pm.get_position_info(symbol)
     
     async def get_sl_status(self, symbol: str) -> Optional[str]:
         """
