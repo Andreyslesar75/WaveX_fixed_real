@@ -69,6 +69,13 @@ class PositionManager:
         self.db = Database()
         self._update_lock = asyncio.Lock()
 
+        # [НОВОЕ] Менеджер реальных защитных ордеров (SL/TP на бирже).
+        # Используется только в real-режиме.
+        if self.is_real:
+            self.real_pm = RealPositionManager(rest_client)
+        else:
+            self.real_pm = None
+
         # 6. Дневная статистика
         self._consecutive_losses = 0
         self._daily_pnl = 0.0

@@ -1204,51 +1204,6 @@ class BinanceFuturesRestClient:
             }
         return None
 
-    # async def cancel_sl_tp(
-    #     self,
-    #     symbol: str,
-    #     sl_order_id: Optional[int] = None,
-    #     tp_order_id: Optional[int] = None,
-    #     sl_client_id: Optional[str] = None,
-    #     tp_client_id: Optional[str] = None,
-    # ) -> Dict[str, bool]:
-    #     """Отменяет SL и/или TP по их ID."""
-    #     result = {"sl": False, "tp": False}
-
-    #     if sl_order_id is not None and sl_client_id is not None:
-    #         try:
-    #             ok = await self.api.cancel_order(
-    #                 symbol, sl_order_id,
-    #                 client_order_id=sl_client_id,
-    #                 is_algo=True,
-    #             )
-    #             result["sl"] = ok
-    #             if ok:
-    #                 log.info(f"{symbol}: SL ордер {sl_order_id} отменён")
-    #             else:
-    #                 log.warning(f"{symbol}: не удалось отменить SL ордер {sl_order_id}")
-    #         except Exception as e:
-    #             log.error(f"{symbol}: ошибка отмены SL: {e}")
-
-    #     if tp_order_id is not None and tp_client_id is not None:
-    #         try:
-    #             ok = await self.api.cancel_order(
-    #                 symbol, tp_order_id,
-    #                 client_order_id=tp_client_id,
-    #                 is_algo=True,
-    #             )
-    #             result["tp"] = ok
-    #             if ok:
-    #                 log.info(f"{symbol}: TP ордер {tp_order_id} отменён")
-    #             else:
-    #                 log.warning(f"{symbol}: не удалось отменить TP ордер {tp_order_id}")
-    #         except Exception as e:
-    #             log.error(f"{symbol}: ошибка отмены TP: {e}")
-
-    #     return result
-
-
-
     async def cancel_order(
         self,
         symbol: str,

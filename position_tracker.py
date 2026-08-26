@@ -129,6 +129,8 @@ class PositionTracker:
             "tp_order_id": order.get("tp_order_id"),
             "tp_client_id": order.get("tp_client_id"),
         }
+
+        
         
         self.positions[symbol] = pos
         
@@ -360,8 +362,31 @@ class PositionTracker:
             return None
         
         pos["closing"] = True
-        
+
         try:
+            # [НОВОЕ] Отменяем защитные ордера на бирже ПЕРЕД закрытием
+            sl_id = pos.get("sl_order_id")
+            tp_id = pos.get("tp_order_id")
+            sl_cid = pos.get("sl_client_id")
+            tp_cid = pos.get("tp_client_id")
+            
+            if sl_id or tp_id:
+                try:
+                    cancel_result = await self.exchange.cancel_sl_tp(
+                        symbol,
+                        sl_order_id=sl_id,
+                        tp_order_id=tp_id,
+                        sl_client_id=sl_cid,
+                        tp_client_id=tp_cid,
+                    )
+                    log.info(
+                        f"{symbol}: защитные ордера отменены "
+                        f"(SL={'✓' if cancel_result.get('sl') else '✗'}, "
+                        f"TP={'✓' if cancel_result.get('tp') else '✗'})"
+                    )
+                except Exception as e:
+                    log.error(f"{symbol}: ошибка отмены защитных ордеров: {e}")
+
             # Закрываем через exchange
             close_order = await self.exchange.close_position(symbol, final_qty, exit_price)
             
@@ -468,6 +493,46 @@ class PositionTracker:
             f"{reason} PARTIAL {symbol} qty={filled:.6f} @ {fmt_price(price)} "
             f"pnl={pnl:+.2f}$ remaining={pos['remaining_qty']:.6f}"
         )
+
+        # [НОВОЕ] После TP1 обновляем TP на бирже
+        if reason == "TP1":
+            # Отменяем старый TP
+            old_tp_id = pos.get("tp_order_id")
+            old_tp_cid = pos.get("tp_client_id")
+            if old_tp_id:
+                try:
+                    await self.exchange.cancel_sl_tp(
+                        symbol,
+                        tp_order_id=old_tp_id,
+                        tp_client_id=old_tp_cid,
+                    )
+                    log.info(f"{symbol}: старый TP отменён после TP1")
+                except Exception as e:
+                    log.error(f"{symbol}: ошибка отмены старого TP: {e}")
+
+            # Ставим новый TP на остаток qty на уровне TP2
+            remaining = pos["remaining_qty"]
+            if remaining > 0:
+                try:
+                    new_tp = await self.exchange.place_tp(
+                        symbol,
+                        pos["tp2_price"],
+                        remaining,
+                    )
+                    if new_tp:
+                        pos["tp_order_id"] = new_tp.get("order_id")
+                        pos["tp_client_id"] = new_tp.get("client_order_id")
+                        log.info(
+                            f"{symbol}: новый TP на TP2 ({pos['tp2_price']}) "
+                            f"qty={remaining:.6f}, id={new_tp.get('order_id')}"
+                        )
+                    else:
+                        log.error(
+                            f"{symbol}: не удалось поставить новый TP после TP1! "
+                            f"Позиция без TP-защиты на бирже."
+                        )
+                except Exception as e:
+                    log.error(f"{symbol}: ошибка постановки нового TP: {e}")
         
         return filled
     
