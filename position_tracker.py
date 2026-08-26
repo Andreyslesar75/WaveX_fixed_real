@@ -393,7 +393,7 @@ class PositionTracker:
             # Позиция полностью закрыта
             self.positions.pop(symbol, None)
             
-            log.info(
+            log.debug(
                 f"TRACKER CLOSE {symbol} [{side}] @ {fmt_price(exit_price)} "
                 f"PnL={pnl:+.2f}$ {reason}"
             )

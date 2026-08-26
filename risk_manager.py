@@ -206,16 +206,47 @@ class PositionManager:
                 tp2_pct = sl_pct * Config.SECOND_TP_MULTIPLIER
                 tp2_price = price * (1 + tp2_pct / 100)
 
-        base_size = calculate_position_size(self.capital, sl_pct, Config.RISK_PER_TRADE_PCT, Config.MAX_POSITION_PCT)
+                # ------------------------------------------------------------
+        # Размер позиции
+        # ------------------------------------------------------------
+        base_size = calculate_position_size(
+            self.capital,
+            sl_pct,
+            Config.RISK_PER_TRADE_PCT,
+            Config.MAX_POSITION_PCT,
+        )
         size = self._calculate_adaptive_size(base_size)
+        
+        # [НОВОЕ]
+        # Если размер слишком маленький, но включён флаг OVERRIDE
+        # и баланс позволяет — используем MIN_POSITION_SIZE_USDT.
+        # Это нужно для тестирования на малых балансах.
+        if (
+            size < Config.MIN_POSITION_SIZE_USDT
+            and Config.ALLOW_MIN_POSITION_OVERRIDE
+            and self.capital >= Config.MIN_POSITION_SIZE_USDT * 1.1  # запас на комиссию
+        ):
+            log.info(
+                f"{symbol}: размер {size:.2f} USDT < минимума, "
+                f"но ALLOW_MIN_POSITION_OVERRIDE=True — "
+                f"использую {Config.MIN_POSITION_SIZE_USDT:.2f} USDT"
+            )
+            size = Config.MIN_POSITION_SIZE_USDT
         
         bsym = to_binance_symbol(symbol)
         info = await self.rest._get_symbol_info(bsym)
         min_notional = info.get("minNotional", 5.0)
-
+        
+        # Если размер слишком маленький, сделка отклоняется.
         if not size_is_valid(size, min_notional):
-            log.warning(f"{symbol}: размер {size:.2f} USDT меньше допустимого минимума, отказ")
-            return False, f"size_too_small ({size:.2f} < min {max(min_notional, Config.MIN_POSITION_SIZE_USDT):.2f})"
+            log.warning(
+                f"{symbol}: размер {size:.2f} USDT "
+                f"меньше допустимого минимума, отказ"
+            )
+            return False, (
+                f"size_too_small "
+                f"({size:.2f} < min {max(min_notional, Config.MIN_POSITION_SIZE_USDT):.2f})"
+            )
 
         if self.is_real and bal < size:
             log.warning(f"{symbol}: баланс {bal:.2f} USDT < требуемого размера {size:.2f} USDT, отказ")
