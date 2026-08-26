@@ -89,6 +89,25 @@ class PositionTracker:
         actual_price = order.get("avg_price", entry_price)
         if actual_price <= 0:
             actual_price = entry_price
+
+        # [НОВОЕ] Получаем minNotional для символа
+        min_notional = await self.exchange.get_min_notional(symbol)
+        margin = Config.MIN_NOTIONAL_SAFETY_MARGIN
+        
+        # [НОВОЕ] Определяем стратегию
+        # Полная стратегия возможна, если после TP1 остаток >= minNotional * margin
+        full_strategy = size_usdt >= 2 * min_notional * margin
+        
+        if full_strategy:
+            # Динамически пересчитываем TP1_SIZE_FRAC
+            # Остаток после TP1 должен быть >= min_notional * margin
+            # size * (1 - frac) >= min_notional * margin
+            # frac <= 1 - (min_notional * margin / size)
+            max_frac = 1.0 - (min_notional * margin / size_usdt)
+            dynamic_tp1_frac = min(Config.TP1_SIZE_FRAC, max_frac)
+            dynamic_tp1_frac = max(0.1, dynamic_tp1_frac)  # Минимум 10%
+        else:
+            dynamic_tp1_frac = 0.0  # TP1 не будет
         
         now = time.time()
         
@@ -128,9 +147,27 @@ class PositionTracker:
             "sl_client_id": order.get("sl_client_id"),
             "tp_order_id": order.get("tp_order_id"),
             "tp_client_id": order.get("tp_client_id"),
+            # [НОВОЕ] Параметры для гибридной стратегии
+            "min_notional": min_notional,
+            "full_strategy": full_strategy,
+            "tp1_size_frac": dynamic_tp1_frac,
         }
 
-        
+        # [НОВОЕ] Если маленькая сделка — сразу помечаем TP1 как пропущенный
+        if not full_strategy:
+            pos["tp1_done"] = True
+            pos["tp1_skipped"] = True
+            log.info(
+                f"{symbol}: малый размер ({size_usdt:.2f} USDT < "
+                f"{2 * min_notional * margin:.2f}), "
+                f"упрощённая стратегия (без TP1)"
+            )
+        else:
+            log.info(
+                f"{symbol}: полная стратегия, "
+                f"TP1_SIZE_FRAC={dynamic_tp1_frac:.2f}"
+            )
+                
         
         self.positions[symbol] = pos
         
@@ -256,7 +293,7 @@ class PositionTracker:
         )
         
         if not pos.get("tp1_done", False) and tp1_condition:
-            target_tp1_qty = pos["quantity"] * Config.TP1_SIZE_FRAC
+            target_tp1_qty = pos["quantity"] * pos.get("tp1_size_frac", Config.TP1_SIZE_FRAC)
             tp1_closed_qty = pos.get("tp1_closed_qty", 0.0)
             need_qty = target_tp1_qty - tp1_closed_qty
             

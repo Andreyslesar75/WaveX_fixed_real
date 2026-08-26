@@ -123,6 +123,11 @@ class ExchangeAdapter(ABC):
         """Открывает SHORT рыночным ордером и (в real-режиме) ставит защиту."""
         pass
 
+    @abstractmethod
+    async def get_min_notional(self, symbol: str) -> float:
+        """Возвращает minNotional для символа."""
+        pass
+
 
 class PaperExchange(ExchangeAdapter):
     """
@@ -143,6 +148,10 @@ class PaperExchange(ExchangeAdapter):
     async def get_klines(self, symbol: str, interval: str, limit: int) -> Optional[list]:
         """Для paper-режима возвращаем None (проверка объёма пропускается) или мок."""
         return None
+
+    async def get_min_notional(self, symbol: str) -> float:
+        """Для paper-режима возвращаем дефолтное значение."""
+        return 5.0  # Дефолтный minNotional
     
     async def place_market_buy(self, symbol: str, qty: float, price: float = 0.0, sl_price: float = 0.0, tp_price: float = 0.0) -> Optional[dict]:
         """Эмулирует открытие LONG."""
@@ -324,6 +333,13 @@ class RealExchange(ExchangeAdapter):
     async def get_klines(self, symbol: str, interval: str, limit: int) -> Optional[list]:
         """Делегирует запрос к api.py."""
         return await self.api.get_klines(symbol, interval, limit)
+
+    async def get_min_notional(self, symbol: str) -> float:
+        """Получает minNotional через api."""
+        from api import to_binance_symbol
+        bsym = to_binance_symbol(symbol)
+        info = await self.api._get_symbol_info(bsym)
+        return info.get("minNotional", 5.0)
     
     async def place_market_buy(
         self, 
