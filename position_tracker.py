@@ -406,8 +406,33 @@ class PositionTracker:
             has_position = pos_info is not None and abs(pos_info.get("position_amt", 0)) > 0
             
             if not has_position:
-                # Позиции нет на бирже - удаляем локально
+                # [ИСПРАВЛЕНО] Позиции нет на бирже - отменяем SL/TP и удаляем локально
                 log.info(f"{symbol}: позиция уже закрыта на бирже, удаляем локально")
+                
+                # Отменяем защитные ордера на бирже
+                sl_id = pos.get("sl_order_id")
+                tp_id = pos.get("tp_order_id")
+                sl_cid = pos.get("sl_client_id")
+                tp_cid = pos.get("tp_client_id")
+                
+                if sl_id or tp_id:
+                    try:
+                        cancel_result = await self.exchange.cancel_sl_tp(
+                            symbol,
+                            sl_order_id=sl_id,
+                            tp_order_id=tp_id,
+                            sl_client_id=sl_cid,
+                            tp_client_id=tp_cid,
+                        )
+                        log.info(
+                            f"{symbol}: защитные ордера отменены "
+                            f"(SL={'✓' if cancel_result.get('sl') else '✗'}, "
+                            f"TP={'✓' if cancel_result.get('tp') else '✗'})"
+                        )
+                    except Exception as e:
+                        log.error(f"{symbol}: ошибка отмены защитных ордеров: {e}")
+                
+                # Удаляем позицию локально
                 self.positions.pop(symbol, None)
                 
                 # Считаем PnL
