@@ -16,6 +16,23 @@ from typing import Optional, Dict, List, Any
 from api import BinanceFuturesRestClient
 from logger import log
 
+def _safe_client_id(symbol: str, prefix: str) -> str:
+    """
+    Создаёт clientAlgoId, допустимый для Binance.
+    Binance разрешает только: [.A-Z:/a-z0-9_-]{1,36}
+    Китайские и другие не-ASCII символы заменяются на 'X'.
+    """
+    # Заменяем все не-ASCII символы на 'X'
+    safe_symbol = "".join(
+        c if c.isascii() and (c.isalnum() or c in "._:/-") else "X"
+        for c in symbol
+    )
+    # Обрезаем до безопасной длины (36 - длина префикса - 16 для uuid)
+    max_sym_len = 36 - len(prefix) - 1 - 16
+    if max_sym_len > 0:
+        safe_symbol = safe_symbol[:max_sym_len]
+    return f"{prefix}_{safe_symbol}_{uuid.uuid4().hex[:16]}"
+
 
 class PositionManager:
     """
@@ -78,7 +95,7 @@ class PositionManager:
         position_side = "LONG" if pos_info["position_amt"] > 0 else "SHORT"
         order_side = "SELL" if position_side == "LONG" else "BUY"
         
-        client_order_id = f"sl_{symbol}_{uuid.uuid4().hex[:16]}"
+        client_order_id = _safe_client_id(symbol, "sl")
 
         order = await self.api.place_stop_market(
             symbol=symbol,
@@ -121,7 +138,7 @@ class PositionManager:
         if quantity is None:
             quantity = abs(pos_info["position_amt"])
         
-        client_order_id = f"tp_{symbol}_{uuid.uuid4().hex[:16]}"
+        client_order_id = _safe_client_id(symbol, "tp")
 
         order = await self.api.place_take_profit_market(
             symbol=symbol,

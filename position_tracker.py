@@ -73,13 +73,13 @@ class PositionTracker:
         # [НОВОЕ] Регистрируем позицию в exchange, передавая цены для защиты
         if side == "LONG":
             order = await self.exchange.place_market_buy(
-                symbol, qty, price=entry_price, sl_price=sl_price, tp_price=tp1_price
+                symbol, qty, price=entry_price, sl_price=sl_price, tp_price=tp2_price
             )
         else:
             order = await self.exchange.place_market_sell(
-                symbol, qty, price=entry_price, sl_price=sl_price, tp_price=tp1_price
+                symbol, qty, price=entry_price, sl_price=sl_price, tp_price=tp2_price
             )
-        
+                
         if not order or order.get("filled_amount", 0) <= 0:
             log.error(f"{symbol}: не удалось открыть позицию через exchange")
             return False
