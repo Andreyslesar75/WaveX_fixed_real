@@ -236,11 +236,13 @@ class ExchangeFiltersCache:
         if not new_symbols:
             raise RuntimeError("exchangeInfo вернул 0 USDT-символов")
         
-        # 2. leverageBracket (может быть недоступен на testnet — не критично)
+        # 2. leverageBracket (приватный эндпоинт, требует подписи)
         new_brackets = {}
         try:
             brackets_data = await self.api._request(
-                "GET", "/fapi/v1/leverageBracket"
+                "GET",
+                "/fapi/v1/leverageBracket",
+                signed=True,   # [ИСПРАВЛЕНО] эндпоинт приватный, требует timestamp+signature
             )
             if brackets_data and isinstance(brackets_data, list):
                 for item in brackets_data:
