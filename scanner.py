@@ -158,17 +158,30 @@ class WaveXScanner:
         - WebSocket-клиент.
         """
         connector = aiohttp.TCPConnector(
-            limit=Config.HTTP_CONNECTOR_LIMIT,
-            ttl_dns_cache=300,
+            limit=Config.HTTP_CONNECTOR_LIMIT, ttl_dns_cache=300,
         )
-
         self.session = aiohttp.ClientSession(connector=connector)
-
         self.rest_client = BinanceFuturesRestClient(
-            Config.BINANCE_API_KEY,
-            Config.BINANCE_API_SECRET,
-            self.session,
+            Config.BINANCE_API_KEY, Config.BINANCE_API_SECRET, self.session,
         )
+        
+        # [НОВОЕ] Блокирующая инициализация кэша фильтров
+        # Если не удастся — торговый цикл не стартует
+        try:
+            await self.rest_client.filters_cache.initialize()
+        except Exception as e:
+            log.error(f"Критическая ошибка: не удалось инициализировать кэш фильтров: {e}")
+            if self.session and not self.session.closed:
+                await self.session.close()
+            raise
+        
+        # [НОВОЕ] Запуск фонового обновления кэша
+        self.rest_client.filters_cache.start_background_updater()
+        
+        self.pos_manager = PositionManager(self.rest_client, Config.REAL_TRADING)
+        if Config.REAL_TRADING:
+            await self.pos_manager.refresh_balance()
+
 
         self.pos_manager = PositionManager(
             self.rest_client,
@@ -204,20 +217,19 @@ class WaveXScanner:
         3. закрываем базу данных.
         """
         self.stop()
-
-        # Отменяем все фоновые задачи.
         for t in self._tasks:
             t.cancel()
-
-        # Ждём завершения задач.
-        # return_exceptions=True, чтобы одна ошибка не сломала закрытие.
         await asyncio.gather(*self._tasks, return_exceptions=True)
-
-        # Закрываем HTTP-сессию.
+        
+        # [НОВОЕ] Остановка фонового обновления кэша
+        if self.rest_client:
+            try:
+                await self.rest_client.filters_cache.stop_background_updater()
+            except Exception as e:
+                log.debug(f"Ошибка остановки filters_cache updater: {e}")
+        
         if self.session and not self.session.closed:
             await self.session.close()
-
-        # Закрываем БД.
         if self.pos_manager:
             self.pos_manager.close()
 

@@ -134,6 +134,274 @@ class TTLCache:
         }
 
 
+class FilterFailureError(Exception):
+    """
+    [НОВОЕ]
+    Исключение для ошибки Binance -1013 Filter failure.
+    Бросается в _request() только для ордерных запросов (is_order=True).
+    Ловится в методах размещения ордеров для реактивного обновления кэша.
+    """
+    def __init__(self, symbol: str):
+        self.symbol = symbol
+        super().__init__(f"Filter failure for {symbol}")
+
+
+class ExchangeFiltersCache:
+    """
+    [НОВОЕ]
+    Кэш exchangeInfo фильтров.
+    
+    Архитектура (по документу АЛГОРИТМ, раздел 3):
+    - Инициализируется блокирующе до старта торгового цикла
+    - Фоновое обновление раз в 2-4 часа (атомарная замена всего снапшота)
+    - Реактивное обновление при -1013 Filter failure
+    
+    Хранит по символу:
+    - stepSize, tickSize, minQty, maxQty, minNotional
+    - pricePrecision, quantityPrecision
+    - status, MARKET_LOT_SIZE
+    - leverageBracket (отдельно)
+    """
+    
+    def __init__(self, api_client):
+        self.api = api_client
+        # bsym -> dict с фильтрами
+        self._symbols: Dict[str, dict] = {}
+        # bsym -> leverage bracket
+        self._leverage_brackets: Dict[str, dict] = {}
+        self._lock = asyncio.Lock()
+        self._initialized = False
+        self._last_update = 0.0
+        self._updater_task: Optional[asyncio.Task] = None
+        self._stop_flag = False
+    
+    # ------------------------------------------------------------
+    # ИНИЦИАЛИЗАЦИЯ
+    # ------------------------------------------------------------
+    async def initialize(self):
+        """
+        Блокирующая инициализация.
+        Должна вызываться до старта торгового цикла.
+        При неудаче — retry с backoff.
+        Если все попытки провалились — бросает исключение,
+        и торговый цикл не стартует.
+        """
+        delays = Config.FILTERS_CACHE_INIT_RETRY_DELAYS
+        retries = Config.FILTERS_CACHE_INIT_RETRIES
+        
+        for attempt in range(retries + 1):
+            try:
+                await self._load_all()
+                self._initialized = True
+                self._last_update = time.time()
+                log.info(
+                    f"ExchangeFiltersCache инициализирован: "
+                    f"{len(self._symbols)} символов, "
+                    f"{len(self._leverage_brackets)} leverage brackets"
+                )
+                return
+            except Exception as e:
+                if attempt < retries:
+                    delay = delays[min(attempt, len(delays) - 1)]
+                    log.warning(
+                        f"ExchangeFiltersCache: ошибка инициализации "
+                        f"(попытка {attempt + 1}/{retries + 1}): {e}. "
+                        f"Retry через {delay}с"
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    log.error(
+                        f"ExchangeFiltersCache: не удалось инициализировать "
+                        f"после {retries + 1} попыток: {e}"
+                    )
+                    raise
+    
+    async def _load_all(self):
+        """
+        Загружает все exchangeInfo и leverageBracket.
+        Атомарная замена всего снапшота целиком.
+        """
+        # 1. exchangeInfo (весь список)
+        data = await self.api._request("GET", "/fapi/v1/exchangeInfo")
+        if not data or not isinstance(data, dict):
+            raise RuntimeError("Не удалось загрузить exchangeInfo")
+        
+        new_symbols = {}
+        for s in data.get("symbols", []):
+            sname = s.get("symbol", "")
+            if not sname.endswith("USDT"):
+                continue
+            new_symbols[sname] = self._parse_symbol_info(s)
+        
+        if not new_symbols:
+            raise RuntimeError("exchangeInfo вернул 0 USDT-символов")
+        
+        # 2. leverageBracket (может быть недоступен на testnet — не критично)
+        new_brackets = {}
+        try:
+            brackets_data = await self.api._request(
+                "GET", "/fapi/v1/leverageBracket"
+            )
+            if brackets_data and isinstance(brackets_data, list):
+                for item in brackets_data:
+                    sname = item.get("symbol", "")
+                    new_brackets[sname] = item
+        except Exception as e:
+            log.debug(f"leverageBracket не загрузился (не критично): {e}")
+        
+        # 3. Атомарная замена
+        async with self._lock:
+            self._symbols = new_symbols
+            self._leverage_brackets = new_brackets
+    
+    def _parse_symbol_info(self, s: dict) -> dict:
+        """Парсит информацию о символе из exchangeInfo."""
+        info = {
+            "stepSize": 0.001,
+            "quantityPrecision": s.get("quantityPrecision", 3),
+            "minQty": 0.0,
+            "maxQty": 0.0,
+            "minNotional": 5.0,
+            "tickSize": 0.00000001,
+            "pricePrecision": s.get("pricePrecision", 8),
+            "status": s.get("status", "TRADING"),
+            "market_lot_size": None,
+        }
+        
+        for f in s.get("filters", []):
+            ft = f.get("filterType")
+            if ft == "LOT_SIZE":
+                info["stepSize"] = _safe_float(f.get("stepSize"), 0.001)
+                info["minQty"] = _safe_float(f.get("minQty"), 0.0)
+                info["maxQty"] = _safe_float(f.get("maxQty"), 0.0)
+            elif ft == "PRICE_FILTER":
+                info["tickSize"] = _safe_float(f.get("tickSize"), 0.00000001)
+            elif ft in ("MIN_NOTIONAL", "NOTIONAL"):
+                info["minNotional"] = _safe_float(
+                    f.get("notional", f.get("minNotional")), 5.0
+                )
+            elif ft == "MARKET_LOT_SIZE":
+                info["market_lot_size"] = {
+                    "stepSize": _safe_float(f.get("stepSize"), 0.001),
+                    "minQty": _safe_float(f.get("minQty"), 0.0),
+                    "maxQty": _safe_float(f.get("maxQty"), 0.0),
+                }
+        
+        return info
+    
+    # ------------------------------------------------------------
+    # РЕАКТИВНОЕ ОБНОВЛЕНИЕ
+    # ------------------------------------------------------------
+    async def refresh_symbol(self, bsym: str) -> bool:
+        """
+        Реактивное обновление по символу при -1013.
+        Делает точечный запрос exchangeInfo?symbol=XXX.
+        Возвращает True, если обновление успешно.
+        """
+        try:
+            data = await self.api._request(
+                "GET",
+                "/fapi/v1/exchangeInfo",
+                params={"symbol": bsym},
+            )
+            if not data or not isinstance(data, dict):
+                return False
+            
+            symbols = data.get("symbols", [])
+            if not symbols:
+                return False
+            
+            s = symbols[0]
+            info = self._parse_symbol_info(s)
+            
+            async with self._lock:
+                self._symbols[bsym] = info
+            
+            log.info(
+                f"ExchangeFiltersCache: реактивное обновление {bsym} "
+                f"(stepSize={info['stepSize']}, tickSize={info['tickSize']}, "
+                f"minNotional={info['minNotional']})"
+            )
+            return True
+        except Exception as e:
+            log.error(f"ExchangeFiltersCache: ошибка обновления {bsym}: {e}")
+            return False
+    
+    # ------------------------------------------------------------
+    # ГЕТТЕРЫ
+    # ------------------------------------------------------------
+    def get(self, bsym: str) -> Optional[dict]:
+        """Получить информацию о символе."""
+        return self._symbols.get(bsym)
+    
+    def get_leverage_bracket(self, bsym: str) -> Optional[dict]:
+        """Получить leverage bracket."""
+        return self._leverage_brackets.get(bsym)
+    
+    def is_initialized(self) -> bool:
+        """Проверка инициализации."""
+        return self._initialized
+    
+    def get_stats(self) -> dict:
+        """Статистика кэша для диагностики."""
+        return {
+            "initialized": self._initialized,
+            "symbols_count": len(self._symbols),
+            "brackets_count": len(self._leverage_brackets),
+            "last_update": self._last_update,
+            "age_sec": time.time() - self._last_update if self._last_update else 0,
+        }
+    
+    # ------------------------------------------------------------
+    # ФОНОВОЕ ОБНОВЛЕНИЕ
+    # ------------------------------------------------------------
+    def start_background_updater(self):
+        """Запускает фоновое обновление раз в FILTERS_CACHE_UPDATE_INTERVAL."""
+        if self._updater_task is not None:
+            return
+        self._stop_flag = False
+        self._updater_task = asyncio.create_task(self._background_updater())
+        log.info(
+            f"ExchangeFiltersCache: фоновое обновление запущено "
+            f"(интервал {Config.FILTERS_CACHE_UPDATE_INTERVAL}с)"
+        )
+    
+    async def stop_background_updater(self):
+        """Останавливает фоновое обновление."""
+        self._stop_flag = True
+        if self._updater_task is not None:
+            self._updater_task.cancel()
+            try:
+                await self._updater_task
+            except asyncio.CancelledError:
+                pass
+            self._updater_task = None
+            log.info("ExchangeFiltersCache: фоновое обновление остановлено")
+    
+    async def _background_updater(self):
+        """Фоновое обновление раз в FILTERS_CACHE_UPDATE_INTERVAL."""
+        interval = Config.FILTERS_CACHE_UPDATE_INTERVAL
+        while not self._stop_flag:
+            try:
+                await asyncio.sleep(interval)
+                if self._stop_flag:
+                    break
+                
+                log.debug("ExchangeFiltersCache: фоновое обновление...")
+                await self._load_all()
+                self._last_update = time.time()
+                log.debug(
+                    f"ExchangeFiltersCache: обновлено "
+                    f"({len(self._symbols)} символов)"
+                )
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                log.warning(f"ExchangeFiltersCache: ошибка фонового обновления: {e}")
+                # При ошибке ждём меньше и пробуем снова
+                await asyncio.sleep(60)
+
+
 # Кэш свечей.
 klines_cache = TTLCache(ttl_seconds=45)
 
@@ -158,7 +426,8 @@ class BinanceFuturesRestClient:
         self.base = Config.BINANCE_BASE
 
         # Кэш информации о символах: stepSize, minQty, minNotional и т.д.
-        self._symbol_info_cache: Dict[str, dict] = {}
+        # self._symbol_info_cache: Dict[str, dict] = {}
+        self.filters_cache = ExchangeFiltersCache(self)
 
         # Символы, для которых уже пытались выставить плечо.
         self._leverage_set: set = set()
@@ -171,7 +440,7 @@ class BinanceFuturesRestClient:
 
         # [НОВОЕ] Локи, чтобы параллельные задачи не ломали друг друга.
         self._time_lock = asyncio.Lock()
-        self._exchange_info_lock = asyncio.Lock()
+        # self._exchange_info_lock = asyncio.Lock()
         self._leverage_lock = asyncio.Lock()
 
     # ================================================================
@@ -337,6 +606,19 @@ class BinanceFuturesRestClient:
                     # Это не всегда ошибка, иногда ордер просто ещё не создан.
                     if "-2013" in text:
                         log.debug(f"Order not found: {path}")
+                        return None
+
+                    if "-2013" in text:
+                        log.debug(f"Order not found: {path}")
+                        return None
+
+                    # [ИЗМЕНЕНО] Filter failure — реактивное обновление кэша
+                    if "-1013" in text:
+                        bsym = (params or {}).get("symbol")
+                        if is_order and bsym:
+                            # Бросаем исключение — его поймает метод размещения ордера
+                            raise FilterFailureError(bsym)
+                        log.warning(f"Filter failure (non-order): {path} {text}")
                         return None
 
                     # Ошибка времени.
@@ -572,72 +854,36 @@ class BinanceFuturesRestClient:
 
     async def _get_symbol_info(self, bsym: str) -> dict:
         """
-        Возвращает информацию о символе Binance:
-        - stepSize;
-        - minQty;
-        - minNotional;
-        - tickSize;
-        - quantityPrecision;
-        - pricePrecision.
-
-        [ИСПРАВЛЕНО]
-        Добавлен tickSize и pricePrecision.
-        Это нужно для правильного округления цены.
+        Возвращает информацию о символе Binance.
+        [ИЗМЕНЕНО] Теперь использует filters_cache.
+        Если символ не в кэше (например, в тестах без инициализации),
+        делает точечную загрузку.
         """
-        if bsym in self._symbol_info_cache:
-            return self._symbol_info_cache[bsym]
-
-        async with self._exchange_info_lock:
-            # Пока ждали lock, другой поток уже мог загрузить данные.
-            if bsym in self._symbol_info_cache:
-                return self._symbol_info_cache[bsym]
-
-            data = await self._request("GET", "/fapi/v1/exchangeInfo")
-
-            default_info = {
-                "stepSize": 0.001,
-                "quantityPrecision": 3,
-                "minQty": 0.0,
-                "minNotional": 5.0,
-                "tickSize": 0.00000001,
-                "pricePrecision": 8,
-            }
-
-            if data and isinstance(data, dict):
-                for s in data.get("symbols", []):
-                    sname = s.get("symbol", "")
-
-                    step = 0.001
-                    min_qty = 0.0
-                    min_notional = 5.0
-                    tick_size = 0.00000001
-
-                    for f in s.get("filters", []):
-                        filter_type = f.get("filterType")
-
-                        if filter_type == "LOT_SIZE":
-                            step = _safe_float(f.get("stepSize"), step)
-                            min_qty = _safe_float(f.get("minQty"), min_qty)
-
-                        if filter_type == "PRICE_FILTER":
-                            tick_size = _safe_float(f.get("tickSize"), tick_size)
-
-                        if filter_type in ("MIN_NOTIONAL", "NOTIONAL"):
-                            min_notional = _safe_float(
-                                f.get("notional", f.get("minNotional")),
-                                min_notional,
-                            )
-
-                    self._symbol_info_cache[sname] = {
-                        "stepSize": step,
-                        "quantityPrecision": s.get("quantityPrecision", 3),
-                        "minQty": min_qty,
-                        "minNotional": min_notional,
-                        "tickSize": tick_size,
-                        "pricePrecision": s.get("pricePrecision", 8),
-                    }
-
-            return self._symbol_info_cache.get(bsym, default_info)
+        info = self.filters_cache.get(bsym)
+        if info is not None:
+            return info
+        
+        # Fallback: точечная загрузка (не должно происходить в продакшене)
+        log.warning(f"{bsym}: символ не в кэше filters, точечная загрузка")
+        ok = await self.filters_cache.refresh_symbol(bsym)
+        if ok:
+            info = self.filters_cache.get(bsym)
+            if info is not None:
+                return info
+        
+        # Последний fallback — дефолтные значения
+        log.warning(f"{bsym}: использую дефолтные значения фильтров")
+        return {
+            "stepSize": 0.001,
+            "quantityPrecision": 3,
+            "minQty": 0.0,
+            "maxQty": 0.0,
+            "minNotional": 5.0,
+            "tickSize": 0.00000001,
+            "pricePrecision": 8,
+            "status": "TRADING",
+            "market_lot_size": None,
+        }
 
     # ================================================================
     # ОКРУГЛЕНИЕ КОЛИЧЕСТВА И ЦЕНЫ
@@ -940,13 +1186,43 @@ class BinanceFuturesRestClient:
             "newClientOrderId": client_order_id,
         }
 
-        resp = await self._request(
-            "POST",
-            "/fapi/v1/order",
-            params=params,
-            signed=True,
-            is_order=True,
-        )
+        # [НОВОЕ] Retry при -1013 Filter failure
+        resp = None
+        for attempt in range(2):
+            try:
+                resp = await self._request(
+                    "POST", "/fapi/v1/order", params=params,
+                    signed=True, is_order=True,
+                )
+                break
+            except FilterFailureError as e:
+                if attempt == 0:
+                    log.warning(
+                        f"{symbol}: -1013 Filter failure, "
+                        f"реактивное обновление фильтра..."
+                    )
+                    ok = await self.filters_cache.refresh_symbol(e.symbol)
+                    if not ok:
+                        log.error(f"{symbol}: не удалось обновить фильтр")
+                        return None
+                    # Пересчитываем qty с новыми фильтрами
+                    qty = await self._round_qty(bsym, raw_qty)
+                    if qty <= 0:
+                        return None
+                    # Проверка minNotional после пересчёта
+                    info = await self._get_symbol_info(bsym)
+                    min_notional = info.get("minNotional", 5.0)
+                    if qty * price < min_notional * 1.01:
+                        return None
+                    # Новый client_order_id для повторной попытки
+                    client_order_id = f"wavex{uuid.uuid4().hex[:20]}"
+                    params = {
+                        "symbol": bsym, "side": "BUY", "type": "MARKET",
+                        "quantity": qty, "newClientOrderId": client_order_id,
+                    }
+                else:
+                    log.error(f"{symbol}: повторный -1013 после обновления, реджект")
+                    return None
 
         order = self._normalize_order(resp)
 
@@ -1019,13 +1295,43 @@ class BinanceFuturesRestClient:
             "newClientOrderId": client_order_id,
         }
 
-        resp = await self._request(
-            "POST",
-            "/fapi/v1/order",
-            params=params,
-            signed=True,
-            is_order=True,
-        )
+        # [НОВОЕ] Retry при -1013 Filter failure
+        resp = None
+        for attempt in range(2):
+            try:
+                resp = await self._request(
+                    "POST", "/fapi/v1/order", params=params,
+                    signed=True, is_order=True,
+                )
+                break
+            except FilterFailureError as e:
+                if attempt == 0:
+                    log.warning(
+                        f"{symbol}: -1013 Filter failure, "
+                        f"реактивное обновление фильтра..."
+                    )
+                    ok = await self.filters_cache.refresh_symbol(e.symbol)
+                    if not ok:
+                        log.error(f"{symbol}: не удалось обновить фильтр")
+                        return None
+                    # Пересчитываем qty с новыми фильтрами
+                    qty = await self._round_qty(bsym, raw_qty)
+                    if qty <= 0:
+                        return None
+                    # Проверка minNotional после пересчёта
+                    info = await self._get_symbol_info(bsym)
+                    min_notional = info.get("minNotional", 5.0)
+                    if qty * price < min_notional * 1.01:
+                        return None
+                    # Новый client_order_id для повторной попытки
+                    client_order_id = f"wavex{uuid.uuid4().hex[:20]}"
+                    params = {
+                        "symbol": bsym, "side": "BUY", "type": "MARKET",
+                        "quantity": qty, "newClientOrderId": client_order_id,
+                    }
+                else:
+                    log.error(f"{symbol}: повторный -1013 после обновления, реджект")
+                    return None
 
         order = self._normalize_order(resp)
         order = await self._wait_order_fill(symbol, client_order_id, order)
@@ -1152,13 +1458,64 @@ class BinanceFuturesRestClient:
             "newClientOrderId": client_order_id,
         }
 
-        resp = await self._request(
-            "POST",
-            "/fapi/v1/order",
-            params=params,
-            signed=True,
-            is_order=True,
-        )
+        # [НОВОЕ] Retry при -1013 Filter failure
+        resp = None
+        for attempt in range(2):
+            try:
+                resp = await self._request(
+                    "POST",
+                    "/fapi/v1/order",
+                    params=params,
+                    signed=True,
+                    is_order=True,
+                )
+                break
+            except FilterFailureError as e:
+                if attempt == 0:
+                    log.warning(
+                        f"{symbol}: -1013 Filter failure на limit-ордере, "
+                        f"реактивное обновление фильтра..."
+                    )
+                    ok = await self.filters_cache.refresh_symbol(e.symbol)
+                    if not ok:
+                        log.error(f"{symbol}: не удалось обновить фильтр, реджект")
+                        return None
+                    
+                    # Пересчитываем qty и price с новыми фильтрами
+                    qty = await self._round_qty(bsym, quantity)
+                    if qty <= 0:
+                        log.warning(
+                            f"{symbol}: qty {quantity:.8f} округлился до 0 "
+                            f"после обновления фильтров"
+                        )
+                        return None
+                    
+                    price = await self._round_price(bsym, price)
+                    if price <= 0:
+                        return None
+                    
+                    # Новый client_order_id для повторной попытки
+                    client_order_id = f"wavex{uuid.uuid4().hex[:20]}"
+                    params = {
+                        "symbol": bsym,
+                        "side": "SELL",
+                        "type": "LIMIT",
+                        "timeInForce": "GTC",
+                        "quantity": qty,
+                        "price": price,
+                        "reduceOnly": "true",
+                        "newClientOrderId": client_order_id,
+                    }
+                    log.info(
+                        f"{symbol}: повтор limit-ордера с новыми фильтрами "
+                        f"(qty={qty}, price={price})"
+                    )
+                else:
+                    log.error(
+                        f"{symbol}: повторный -1013 после обновления фильтров, "
+                        f"реджект limit-ордера"
+                    )
+                    return None
 
         order = self._normalize_order(resp)
         order = await self._wait_order_fill(symbol, client_order_id, order)
@@ -1304,13 +1661,34 @@ class BinanceFuturesRestClient:
             client_order_id = f"wavex{uuid.uuid4().hex[:20]}"
         params["clientAlgoId"] = client_order_id  # [ИСПРАВЛЕНО] clientAlgoId вместо newClientOrderId
 
-        resp = await self._request(
-            "POST",
-            "/fapi/v1/algoOrder",  # [ИСПРАВЛЕНО] Правильный эндпоинт без слэша
-            params=params,
-            signed=True,
-            is_order=True,
-        )
+        # [НОВОЕ] Retry при -1013
+        resp = None
+        for attempt in range(2):
+            try:
+                resp = await self._request(
+                    "POST", "/fapi/v1/algoOrder", params=params,
+                    signed=True, is_order=True,
+                )
+                break
+            except FilterFailureError as e:
+                if attempt == 0:
+                    log.warning(f"{symbol}: -1013, реактивное обновление...")
+                    ok = await self.filters_cache.refresh_symbol(e.symbol)
+                    if not ok:
+                        return None
+                    # Пересчитываем цену и qty
+                    rounded_price = await self._round_price(bsym, stop_price)
+                    params["triggerPrice"] = str(rounded_price)
+                    if not close_position and quantity is not None:
+                        qty = await self._round_qty(bsym, quantity)
+                        if qty <= 0:
+                            return None
+                        params["quantity"] = str(qty)
+                    client_order_id = f"wavex{uuid.uuid4().hex[:20]}"
+                    params["clientAlgoId"] = client_order_id
+                else:
+                    log.error(f"{symbol}: повторный -1013, реджект")
+                    return None
         return self._normalize_order(resp)
 
     async def place_take_profit_market(
@@ -1357,13 +1735,34 @@ class BinanceFuturesRestClient:
             client_order_id = f"wavex{uuid.uuid4().hex[:20]}"
         params["clientAlgoId"] = client_order_id  # [ИСПРАВЛЕНО]
 
-        resp = await self._request(
-            "POST",
-            "/fapi/v1/algoOrder",  # [ИСПРАВЛЕНО]
-            params=params,
-            signed=True,
-            is_order=True,
-        )
+        # [НОВОЕ] Retry при -1013
+        resp = None
+        for attempt in range(2):
+            try:
+                resp = await self._request(
+                    "POST", "/fapi/v1/algoOrder", params=params,
+                    signed=True, is_order=True,
+                )
+                break
+            except FilterFailureError as e:
+                if attempt == 0:
+                    log.warning(f"{symbol}: -1013, реактивное обновление...")
+                    ok = await self.filters_cache.refresh_symbol(e.symbol)
+                    if not ok:
+                        return None
+                    # Пересчитываем цену и qty
+                    rounded_price = await self._round_price(bsym, stop_price)
+                    params["triggerPrice"] = str(rounded_price)
+                    if not close_position and quantity is not None:
+                        qty = await self._round_qty(bsym, quantity)
+                        if qty <= 0:
+                            return None
+                        params["quantity"] = str(qty)
+                    client_order_id = f"wavex{uuid.uuid4().hex[:20]}"
+                    params["clientAlgoId"] = client_order_id
+                else:
+                    log.error(f"{symbol}: повторный -1013, реджект")
+                    return None
         return self._normalize_order(resp)
 
     # ================================================================
