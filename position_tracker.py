@@ -83,6 +83,10 @@ class PositionTracker:
         if not order or order.get("filled_amount", 0) <= 0:
             log.error(f"{symbol}: не удалось открыть позицию через exchange")
             return False
+
+        # [НОВОЕ] Сохраняем entry_order_id
+        entry_order_id = order.get("order_id")
+        client_order_id = order.get("client_order_id")
         
         # Используем реальные значения из ответа exchange
         actual_qty = order.get("filled_amount", qty)
@@ -151,6 +155,9 @@ class PositionTracker:
             "min_notional": min_notional,
             "full_strategy": full_strategy,
             "tp1_size_frac": dynamic_tp1_frac,
+            
+            "entry_order_id": entry_order_id,
+            "client_order_id": client_order_id,
         }
 
         # [НОВОЕ] Если маленькая сделка — сразу помечаем TP1 как пропущенный
@@ -454,6 +461,18 @@ class PositionTracker:
                     "mae": pos.get("mae", 0.0),
                     "sl_pct": pos.get("sl_pct", 0.0),
                     "tp_pct": pos.get("tp1_pct", 0.0),
+                    # [НОВОЕ] Идентификаторы биржи
+                    "entry_order_id": pos.get("entry_order_id"),
+                    "exit_order_id": close_order.get("order_id") if close_order else None,
+                    "sl_order_id": pos.get("sl_order_id"),
+                    "tp_order_id": pos.get("tp_order_id"),
+                    "sl_client_id": pos.get("sl_client_id"),
+                    "tp_client_id": pos.get("tp_client_id"),
+                    "client_order_id": pos.get("client_order_id"),
+                    # [НОВОЕ] Реально выставленные уровни
+                    "sl_price": pos.get("sl_price"),
+                    "tp1_price": pos.get("tp1_price"),
+                    "tp2_price": pos.get("tp2_price"),
                 }
             
             # Закрываем через exchange

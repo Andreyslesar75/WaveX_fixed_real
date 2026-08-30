@@ -26,6 +26,20 @@ from position_tracker import PositionTracker
 from position_manager import PositionManager as RealPositionManager
 
 
+def log_equity_event(self, event_type: str):
+    """
+    Записывает equity по событию.
+    event_type: 'open', 'close', 'tp1', 'sl_change'
+    """
+    if self.db is not None:
+        self.db.log_equity(
+            self.capital,
+            self.total_pnl,
+            len(self.tracker.get_open_positions()),
+            event_type=event_type,
+        )
+
+
 class PositionManager:
     """
     Менеджер рисков и позиций.
@@ -213,7 +227,7 @@ class PositionManager:
                 tp2_pct = sl_pct * Config.SECOND_TP_MULTIPLIER
                 tp2_price = price * (1 + tp2_pct / 100)
 
-                # ------------------------------------------------------------
+        # ------------------------------------------------------------
         # Размер позиции
         # ------------------------------------------------------------
         base_size = calculate_position_size(
@@ -365,6 +379,18 @@ class PositionManager:
             "side": side,
             "mfe": mfe,
             "mae": mae,
+            # [НОВОЕ] Идентификаторы биржи
+            "entry_order_id": event.get("entry_order_id"),
+            "exit_order_id": event.get("exit_order_id"),
+            "sl_order_id": event.get("sl_order_id"),
+            "tp_order_id": event.get("tp_order_id"),
+            "sl_client_id": event.get("sl_client_id"),
+            "tp_client_id": event.get("tp_client_id"),
+            "client_order_id": event.get("client_order_id"),
+            # [НОВОЕ] Реально выставленные уровни SL/TP
+            "sl_price": event.get("sl_price"),
+            "tp1_price": event.get("tp1_price"),
+            "tp2_price": event.get("tp2_price"),
         })
 
         if self.is_real:

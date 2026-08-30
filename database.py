@@ -80,7 +80,10 @@ class Database:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TEXT,
                     symbol TEXT,
+                    client_order_id TEXT,
+                    entry_order_id TEXT,
                     entry_price REAL,
+                    exit_order_id TEXT,
                     exit_price REAL,
                     size_usdt REAL,
                     qty REAL,
@@ -90,8 +93,15 @@ class Database:
                     entry_time TEXT,
                     exit_time TEXT,
                     score INTEGER,
+                    sl_price REAL,
                     sl_pct REAL,
+                    sl_order_id TEXT,
+                    sl_client_id TEXT,
+                    tp1_price REAL,
+                    tp2_price REAL,
                     tp_pct REAL,
+                    tp_order_id TEXT,
+                    tp_client_id TEXT,
                     side TEXT DEFAULT 'LONG',
                     mfe REAL DEFAULT 0.0,
                     mae REAL DEFAULT 0.0
@@ -102,7 +112,8 @@ class Database:
                     timestamp TEXT,
                     balance REAL,
                     pnl REAL,
-                    open_pos INTEGER
+                    open_pos INTEGER,
+                    event_type TEXT DEFAULT 'periodic'
                 );
             """)
             self.conn.commit()
@@ -150,7 +161,7 @@ class Database:
             except Exception as e:
                 log.debug(f"Не удалось создать индексы: {e}")
 
-    def log_trade(self, data: Dict[str, Any]):
+    def log_trade(self, trade_data: dict):
         """
         Сохраняет одну закрытую сделку в таблицу trades.
         
@@ -161,46 +172,84 @@ class Database:
         - exit_reason: "SL", "TP1", "TP2", "TRAIL_SL" и т.д.
         - mfe, mae: максимум в плюс и максимум в минус во время сделки
         """
-        cols = [
-            "timestamp", "symbol", "entry_price", "exit_price",
-            "size_usdt", "qty", "pnl_pct", "pnl_usdt",
-            "exit_reason", "entry_time", "exit_time", "score",
-            "sl_pct", "tp_pct", "side", "mfe", "mae",
-        ]
-
-        # [ИСПРАВЛЕНО]
-        # Раньше для отсутствующих полей ставилась пустая строка "".
-        # Это неправильно для числовых колонок (REAL, INTEGER).
-        # Теперь используется data.get(c), который возвращает None,
-        # и в базу записывается корректный NULL.
-        vals = [data.get(c) for c in cols]
-
-        placeholders = ",".join(["?"] * len(cols))
-        query = f"INSERT INTO trades ({','.join(cols)}) VALUES ({placeholders})"
-
-        with self._lock:
-            try:
-                self.conn.execute(query, vals)
-                self.conn.commit()
-            except Exception as e:
-                log.error(f"Не удалось записать сделку в БД: {e}")
-
-    def log_equity(self, balance: float, pnl: float, open_pos: int):
-        """
-        Сохраняет снимок капитала.
-        
-        Вызывается каждые несколько секунд, чтобы потом можно было
-        построить график роста/падения баланса.
-        """
-        with self._lock:
-            try:
-                self.conn.execute(
-                    "INSERT INTO equity (timestamp, balance, pnl, open_pos) VALUES (?, ?, ?, ?)",
-                    (datetime.now().isoformat(), balance, pnl, open_pos),
+        try:
+            self.conn.execute(
+                """
+                INSERT INTO trades (
+                    timestamp, symbol, side, entry_price, exit_price,
+                    size_usdt, qty, pnl_pct, pnl_usdt, exit_reason,
+                    entry_time, exit_time, score, sl_pct, tp_pct,
+                    mfe, mae,
+                    entry_order_id, exit_order_id,
+                    sl_order_id, tp_order_id,
+                    sl_client_id, tp_client_id,
+                    client_order_id,
+                    sl_price, tp1_price, tp2_price
+                ) VALUES (
+                    ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?,
+                    ?, ?,
+                    ?, ?,
+                    ?, ?,
+                    ?, ?,
+                    ?,
+                    ?, ?, ?
                 )
-                self.conn.commit()
-            except Exception as e:
-                log.error(f"Не удалось записать equity в БД: {e}")
+                """,
+                (
+                    trade_data.get("timestamp"),
+                    trade_data.get("symbol"),
+                    trade_data.get("side", "LONG"),
+                    trade_data.get("entry_price"),
+                    trade_data.get("exit_price"),
+                    trade_data.get("size_usdt"),
+                    trade_data.get("qty"),
+                    trade_data.get("pnl_pct"),
+                    trade_data.get("pnl_usdt"),
+                    trade_data.get("exit_reason"),
+                    trade_data.get("entry_time"),
+                    trade_data.get("exit_time"),
+                    trade_data.get("score"),
+                    trade_data.get("sl_pct"),
+                    trade_data.get("tp_pct"),
+                    trade_data.get("mfe"),
+                    trade_data.get("mae"),
+                    trade_data.get("entry_order_id"),
+                    trade_data.get("exit_order_id"),
+                    trade_data.get("sl_order_id"),
+                    trade_data.get("tp_order_id"),
+                    trade_data.get("sl_client_id"),
+                    trade_data.get("tp_client_id"),
+                    trade_data.get("client_order_id"),
+                    trade_data.get("sl_price"),
+                    trade_data.get("tp1_price"),
+                    trade_data.get("tp2_price"),
+                ),
+            )
+            self.conn.commit()
+        except Exception as e:
+            log.error(f"Ошибка записи сделки в БД: {e}")
+
+    def log_equity(self, capital: float, total_pnl: float, open_positions: int, event_type: str = "periodic"):
+        """Записывает снимок капитала."""
+        try:
+            self.conn.execute(
+                """
+                INSERT INTO equity (timestamp, capital, total_pnl, open_positions, event_type)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    datetime.now().isoformat(),
+                    capital,
+                    total_pnl,
+                    open_positions,
+                    event_type,
+                ),
+            )
+            self.conn.commit()
+        except Exception as e:
+            log.error(f"Ошибка записи equity: {e}")
 
     def get_trades(self, limit: int = 100) -> List[Dict]:
         """
