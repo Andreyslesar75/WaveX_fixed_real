@@ -120,9 +120,6 @@ class WaveXScanner:
         # Список фоновых asyncio-задач.
         self._tasks: List[asyncio.Task] = []
 
-        # Время последней записи equity.
-        self._last_equity_log = 0.0
-
     # ================================================================
     # СЛУЖЕБНОЕ
     # ================================================================
@@ -1076,14 +1073,6 @@ class WaveXScanner:
                 self.prices = {p[0]: p[2] for p in candidates}
 
                 await self.pos_manager.update_positions(self.prices)
-
-                # [ИСПРАВЛЕНО]
-                # Equity пишем не каждый цикл, а примерно раз в 60 секунд.
-                now = time.time()
-
-                if now - self._last_equity_log >= 60:
-                    self.pos_manager.log_equity()
-                    self._last_equity_log = now
 
                 # ------------------------------------------------------------
                 # 3. WebSocket подписки

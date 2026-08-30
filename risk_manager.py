@@ -298,6 +298,8 @@ class PositionManager:
             if not self.is_real:
                 self.capital -= size
             play_sound("open")
+            # [НОВОЕ] Записываем equity по событию открытия
+            self.log_equity_event("open")
             return True, sl_source
 
         return False, "tracker_open_failed"
@@ -308,8 +310,19 @@ class PositionManager:
     async def update_positions(self, prices: Dict[str, float]):
         async with self._update_lock:
             events = await self.tracker.update_prices(prices)
+            # [НОВОЕ] Проверяем, изменился ли SL у открытых позиций
+            sl_changed = False
+            for symbol, pos in self.tracker.positions.items():
+                if pos.get("_sl_changed"):
+                    sl_changed = True
+                    pos["_sl_changed"] = False
+
             for event in events:
                 await self._handle_position_event(event)
+
+            # [НОВОЕ] Если SL изменился (трейлинг/breakeven), записываем equity
+            if sl_changed:
+                self.log_equity_event("sl_change")
 
     async def _handle_position_event(self, event: dict):
         symbol = event["symbol"]
@@ -397,6 +410,10 @@ class PositionManager:
             await self.refresh_balance()
 
         log.info(f"CLOSE {symbol} [{side}] @ {fmt_price(exit_price)} PnL={pnl:+.2f}$ ({pnl_pct:+.2f}%) {reason}")
+
+        # [НОВОЕ] Записываем equity по событию закрытия
+        event_type = "tp1" if reason == "TP1" else "close"
+        self.log_equity_event(event_type)
 
     # ================================================================
     # СВОЙСТВА ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ

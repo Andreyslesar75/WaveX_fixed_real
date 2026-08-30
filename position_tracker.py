@@ -525,7 +525,20 @@ class PositionTracker:
                 "mae": pos.get("mae", 0.0),
                 "sl_pct": pos.get("sl_pct", 0.0),
                 "tp_pct": pos.get("tp1_pct", 0.0),
+                # [НОВОЕ] Идентификаторы биржи
+                "entry_order_id": pos.get("entry_order_id"),
+                "exit_order_id": close_order.get("order_id") if close_order else None,
+                "sl_order_id": pos.get("sl_order_id"),
+                "tp_order_id": pos.get("tp_order_id"),
+                "sl_client_id": pos.get("sl_client_id"),
+                "tp_client_id": pos.get("tp_client_id"),
+                "client_order_id": pos.get("client_order_id"),
+                # [НОВОЕ] Реально выставленные уровни
+                "sl_price": pos.get("sl_price"),
+                "tp1_price": pos.get("tp1_price"),
+                "tp2_price": pos.get("tp2_price"),
             }
+            
         
         finally:
             if symbol in self.positions:

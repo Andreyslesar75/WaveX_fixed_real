@@ -250,3 +250,16 @@ class PositionManager:
         else:
             log.warning(f"{symbol}: не удалось отменить все ордера")
         return ok
+
+    def log_equity_event(self, event_type: str):
+        """
+        Записывает equity по событию.
+        event_type: 'open', 'close', 'tp1', 'sl_change', 'periodic'
+        """
+        if self.db is not None:
+            self.db.log_equity(
+                self.capital,
+                self.total_pnl,
+                len(self.tracker.get_open_positions()),
+                event_type=event_type,
+            )

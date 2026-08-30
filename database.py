@@ -110,9 +110,9 @@ class Database:
                 CREATE TABLE IF NOT EXISTS equity (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TEXT,
-                    balance REAL,
-                    pnl REAL,
-                    open_pos INTEGER,
+                    capital REAL,
+                    total_pnl REAL,
+                    open_positions INTEGER,
                     event_type TEXT DEFAULT 'periodic'
                 );
             """)
@@ -173,6 +173,13 @@ class Database:
         - mfe, mae: максимум в плюс и максимум в минус во время сделки
         """
         try:
+            # [НОВОЕ] Отладочный лог
+            log.debug(
+                f"log_trade вызван: {trade_data.get('symbol')} "
+                f"pnl={trade_data.get('pnl_usdt'):.2f} "
+                f"reason={trade_data.get('exit_reason')}"
+            )
+            
             self.conn.execute(
                 """
                 INSERT INTO trades (
