@@ -26,19 +26,6 @@ from position_tracker import PositionTracker
 from position_manager import PositionManager as RealPositionManager
 
 
-def log_equity_event(self, event_type: str):
-    """
-    Записывает equity по событию.
-    event_type: 'open', 'close', 'tp1', 'sl_change'
-    """
-    if self.db is not None:
-        self.db.log_equity(
-            self.capital,
-            self.total_pnl,
-            len(self.tracker.get_open_positions()),
-            event_type=event_type,
-        )
-
 
 class PositionManager:
     """
@@ -325,6 +312,13 @@ class PositionManager:
                 self.log_equity_event("sl_change")
 
     async def _handle_position_event(self, event: dict):
+        # [НОВОЕ] Отладочный лог
+        log.info(
+            f"[DEBUG] _handle_position_event вызван: "
+            f"{event.get('symbol')} reason={event.get('reason')} "
+            f"pnl={event.get('pnl', 0):+.2f}$"
+        )
+
         symbol = event["symbol"]
         reason = event["reason"]
         pnl = event["pnl"]
@@ -406,6 +400,15 @@ class PositionManager:
             "tp2_price": event.get("tp2_price"),
         })
 
+        # [НОВОЕ] Записываем equity по событию закрытия
+        event_type = "tp1" if reason == "TP1" else "close"
+        self.log_equity_event(event_type)
+
+        log.info(
+            f"[DEBUG] Сделка записана в БД: {symbol} "
+            f"pnl={pnl:+.2f}$ reason={reason}"
+        )
+
         if self.is_real:
             await self.refresh_balance()
 
@@ -446,8 +449,22 @@ class PositionManager:
     def get_open_positions(self) -> List[dict]:
         return self.tracker.get_open_positions()
 
-    def log_equity(self):
-        self.db.log_equity(self.capital, self.total_pnl, len(self.tracker.get_open_positions()))
+    def log_equity_event(self, event_type: str = "periodic"):
+        """
+        Записывает equity по событию.
+        event_type: 'open', 'close', 'tp1', 'sl_change', 'periodic'
+        """
+        if self.db is not None:
+            self.db.log_equity(
+                self.capital,
+                self.total_pnl,
+                len(self.tracker.get_open_positions()),
+                event_type=event_type,
+            )
+
+    def log_equity(self, event_type: str = "periodic"):
+        """Записывает снимок капитала (для обратной совместимости)."""
+        self.log_equity_event(event_type)
 
     def get_trades(self, limit: int = 100):
         return self.db.get_trades(limit)
