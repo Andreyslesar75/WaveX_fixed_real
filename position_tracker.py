@@ -420,23 +420,140 @@ class PositionTracker:
 
             log.info(f"[DEBUG-TRACKER] {symbol}: has_position={has_position}")
             
-            if not has_position:
-                # [ИСПРАВЛЕНО] Позиции нет на бирже - отменяем SL/TP и удаляем локально
-                log.info(f"{symbol}: позиция уже закрыта на бирже, удаляем локально")
+            # if not has_position:
+            #     # [ИСПРАВЛЕНО] Позиции нет на бирже - отменяем SL/TP и удаляем локально
+            #     log.info(f"{symbol}: позиция уже закрыта на бирже,  получаем данные из истории сделок")
 
-                # Получаем историю сделок за последние 24 часа
+            #     # Сначала считаем расчётный PnL (на случай, если история сделок недоступна)
+            #     side = pos.get("side", "LONG")
+            #     pnl = self._calc_pnl(pos["entry_price"], exit_price, final_qty, side)
+
+            #     # Получаем историю сделок за последние 24 часа
+            #     try:
+            #         trades = await self.exchange.get_user_trades(symbol, limit=50)
+            #         if trades:
+            #             # Ищем последнюю closing-сделку по этому символу
+            #             closing_trades = [
+            #                 t for t in trades 
+            #                 if abs(t.get("quantity", 0) - final_qty) < 1e-6  # совпадает количество
+            #             ]
+            #             if closing_trades:
+            #                 last_trade = closing_trades[0]  # самая свежая
+            #                 real_exit_price = last_trade.get("price", exit_price)
+            #                 real_pnl = last_trade.get("realized_pnl", pnl)
+            #                 log.info(f"{symbol}: реальная цена выхода={real_exit_price}, PnL={real_pnl}")
+            #                 exit_price = real_exit_price
+            #                 pnl = real_pnl
+            #             else:
+            #                 log.warning(f"{symbol}: не найдено closing-сделок в истории, использую расчётный PnL")
+            #         else:
+            #             log.warning(f"{symbol}: история сделок пуста, использую расчётный PnL")
+            #     except Exception as e:
+            #         log.error(f"{symbol}: ошибка получения истории сделок: {e}")
+                
+            #     # Отменяем защитные ордера на бирже
+            #     sl_id = pos.get("sl_order_id")
+            #     tp_id = pos.get("tp_order_id")
+            #     sl_cid = pos.get("sl_client_id")
+            #     tp_cid = pos.get("tp_client_id")
+                
+            #     if sl_id or tp_id:
+            #         try:
+            #             cancel_result = await self.exchange.cancel_sl_tp(
+            #                 symbol,
+            #                 sl_order_id=sl_id,
+            #                 tp_order_id=tp_id,
+            #                 sl_client_id=sl_cid,
+            #                 tp_client_id=tp_cid,
+            #             )
+            #             log.info(
+            #                 f"{symbol}: защитные ордера отменены "
+            #                 f"(SL={'✓' if cancel_result.get('sl') else '✗'}, "
+            #                 f"TP={'✓' if cancel_result.get('tp') else '✗'})"
+            #             )
+            #         except Exception as e:
+            #             log.error(f"{symbol}: ошибка отмены защитных ордеров: {e}")
+                
+            #     # Удаляем позицию локально
+            #     self.positions.pop(symbol, None)
+
+            #     # Определяем причину закрытия
+            #     if pos.get("trail_active", False):
+            #         reason = "TRAIL_SL"
+            #     elif pos.get("breakeven_set", False):
+            #         reason = "BE_SL"
+            #     else:
+            #         reason = "SL"  # предполагаем, что сработал SL
+                
+            #     # Считаем PnL
+            #     side = pos.get("side", "LONG")
+            #     pnl = self._calc_pnl(pos["entry_price"], exit_price, final_qty, side)
+                
+            #     return {
+            #         "symbol": symbol,
+            #         "reason": reason,
+            #         "price": exit_price,
+            #         "qty": final_qty,
+            #         "pnl": pnl,
+            #         "entry_price": pos["entry_price"],
+            #         "entry_time": pos["entry_time"],
+            #         "size_usdt": pos["size_usdt"],
+            #         "score": pos["score"],
+            #         "side": side,
+            #         "mfe": pos.get("mfe", 0.0),
+            #         "mae": pos.get("mae", 0.0),
+            #         "sl_pct": pos.get("sl_pct", 0.0),
+            #         "tp_pct": pos.get("tp1_pct", 0.0),
+            #         # [НОВОЕ] Идентификаторы биржи
+            #         "entry_order_id": pos.get("entry_order_id"),
+            #         "exit_order_id": close_order.get("order_id") if close_order else None,
+            #         "sl_order_id": pos.get("sl_order_id"),
+            #         "tp_order_id": pos.get("tp_order_id"),
+            #         "sl_client_id": pos.get("sl_client_id"),
+            #         "tp_client_id": pos.get("tp_client_id"),
+            #         "client_order_id": pos.get("client_order_id"),
+            #         # [НОВОЕ] Реально выставленные уровни
+            #         "sl_price": pos.get("sl_price"),
+            #         "tp1_price": pos.get("tp1_price"),
+            #         "tp2_price": pos.get("tp2_price"),
+            #     }
+            
+            #     log.info(f"[DEBUG-TRACKER] {symbol}: returning event with reason={reason}, pnl={pnl:+.2f}$")           
+
+            if not has_position:
+                # log.info(f"[DEBUG-TRACKER] {symbol}: позиция закрыта на бирже, начинаем обработку")
+                
+                # Сначала считаем расчётный PnL
+                side = pos.get("side", "LONG")
+                pnl = self._calc_pnl(pos["entry_price"], exit_price, final_qty, side)
+                # log.info(f"[DEBUG-TRACKER] {symbol}: расчётный PnL={pnl:+.2f}$")
+                
+                # Пытаемся получить реальную цену выхода из истории сделок
                 try:
+                    # log.info(f"[DEBUG-TRACKER] {symbol}: запрашиваем историю сделок...")
                     trades = await self.exchange.get_user_trades(symbol, limit=50)
+                    # log.info(f"[DEBUG-TRACKER] {symbol}: получено {len(trades) if trades else 0} сделок из истории")
+                    
                     if trades:
-                        # Ищем последнюю closing-сделку по этому символу
                         closing_trades = [
                             t for t in trades 
-                            if abs(t.get("quantity", 0) - final_qty) < 1e-6  # совпадает количество
+                            if abs(t.get("quantity", 0) - final_qty) < 1e-6
                         ]
+                        # log.info(f"[DEBUG-TRACKER] {symbol}: найдено {len(closing_trades)} closing-сделок")
+                        
                         if closing_trades:
-                            last_trade = closing_trades[0]  # самая свежая
+                            # Сортируем по времени и берём последнюю (exit-сделку)
+                            closing_trades.sort(key=lambda t: t.get("time", 0))
+                            last_trade = closing_trades[-1]  # последняя = exit
                             real_exit_price = last_trade.get("price", exit_price)
                             real_pnl = last_trade.get("realized_pnl", pnl)
+                            # Если realizedPnl == 0 (бывает для entry-сделки), используем расчётный
+                            if abs(real_pnl) < 1e-9:
+                                real_pnl = pnl
+                                log.info(f"{symbol}: realizedPnl=0 из истории, использую расчётный PnL={pnl:+.2f}$")
+                            else:
+                                log.info(f"{symbol}: реальная цена выхода={real_exit_price}, PnL={real_pnl}")
+
                             log.info(f"{symbol}: реальная цена выхода={real_exit_price}, PnL={real_pnl}")
                             exit_price = real_exit_price
                             pnl = real_pnl
@@ -446,6 +563,10 @@ class PositionTracker:
                         log.warning(f"{symbol}: история сделок пуста, использую расчётный PnL")
                 except Exception as e:
                     log.error(f"{symbol}: ошибка получения истории сделок: {e}")
+                    import traceback
+                    log.error(traceback.format_exc())
+                
+                # log.info(f"[DEBUG-TRACKER] {symbol}: история сделок обработана, переходим к отмене SL/TP")
                 
                 # Отменяем защитные ордера на бирже
                 sl_id = pos.get("sl_order_id")
@@ -453,8 +574,11 @@ class PositionTracker:
                 sl_cid = pos.get("sl_client_id")
                 tp_cid = pos.get("tp_client_id")
                 
+                # log.info(f"[DEBUG-TRACKER] {symbol}: sl_id={sl_id}, tp_id={tp_id}, sl_cid={sl_cid}, tp_cid={tp_cid}")
+                
                 if sl_id or tp_id:
                     try:
+                        # log.info(f"[DEBUG-TRACKER] {symbol}: отменяем защитные ордера...")
                         cancel_result = await self.exchange.cancel_sl_tp(
                             symbol,
                             sl_order_id=sl_id,
@@ -469,23 +593,26 @@ class PositionTracker:
                         )
                     except Exception as e:
                         log.error(f"{symbol}: ошибка отмены защитных ордеров: {e}")
+                        import traceback
+                        log.error(traceback.format_exc())
+                
+                log.info(f"[DEBUG-TRACKER] {symbol}: SL/TP отменены, удаляем позицию локально")
                 
                 # Удаляем позицию локально
                 self.positions.pop(symbol, None)
-
+                
                 # Определяем причину закрытия
+                original_reason = reason
                 if pos.get("trail_active", False):
                     reason = "TRAIL_SL"
                 elif pos.get("breakeven_set", False):
                     reason = "BE_SL"
                 else:
-                    reason = "SL"  # предполагаем, что сработал SL
+                    reason = "SL"
                 
-                # Считаем PnL
-                side = pos.get("side", "LONG")
-                pnl = self._calc_pnl(pos["entry_price"], exit_price, final_qty, side)
+                log.info(f"[DEBUG-TRACKER] {symbol}: причина закрытия: {original_reason} -> {reason}")
                 
-                return {
+                event = {
                     "symbol": symbol,
                     "reason": reason,
                     "price": exit_price,
@@ -500,21 +627,23 @@ class PositionTracker:
                     "mae": pos.get("mae", 0.0),
                     "sl_pct": pos.get("sl_pct", 0.0),
                     "tp_pct": pos.get("tp1_pct", 0.0),
-                    # [НОВОЕ] Идентификаторы биржи
                     "entry_order_id": pos.get("entry_order_id"),
-                    "exit_order_id": close_order.get("order_id") if close_order else None,
+                    "exit_order_id": None,
                     "sl_order_id": pos.get("sl_order_id"),
                     "tp_order_id": pos.get("tp_order_id"),
                     "sl_client_id": pos.get("sl_client_id"),
                     "tp_client_id": pos.get("tp_client_id"),
                     "client_order_id": pos.get("client_order_id"),
-                    # [НОВОЕ] Реально выставленные уровни
                     "sl_price": pos.get("sl_price"),
                     "tp1_price": pos.get("tp1_price"),
                     "tp2_price": pos.get("tp2_price"),
                 }
+                
+                # log.info(f"[DEBUG-TRACKER] {symbol}: event сформирован, возвращаем из _close_position")
+                log.info(f"[DEBUG-TRACKER] {symbol}: returning event with reason={reason}, pnl={pnl:+.2f}$")
+                return event
+
             
-                log.info(f"[DEBUG-TRACKER] {symbol}: returning event with reason={reason}, pnl={pnl:+.2f}$")           
             
             # Закрываем через exchange
             close_order = await self.exchange.close_position(symbol, final_qty, exit_price)
