@@ -16,7 +16,7 @@ import asyncio
 import time
 import uuid
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any
+from typing import List, Optional, Dict, Any
 from logger import log
 
 
@@ -136,13 +136,22 @@ class ExchangeAdapter(ABC):
         """Возвращает minNotional для символа."""
         pass
 
+    @abstractmethod
+    async def get_user_trades(self, symbol: str, limit: int = 50) -> List[dict]:
+        """Возвращает историю сделок по символу."""
+        pass
+
 
 class PaperExchange(ExchangeAdapter):
     """
     Эмуляция биржи для paper-режима.
     Хранит виртуальные позиции и ордера в памяти.
     """
-    
+
+    async def get_user_trades(self, symbol: str, limit: int = 50) -> List[dict]:
+        """Для paper-режима возвращаем пустой список."""
+        return []
+
     def __init__(self):
         # Виртуальные позиции: symbol -> {qty, side, entry_price}
         self._positions: Dict[str, dict] = {}
@@ -347,6 +356,10 @@ class RealExchange(ExchangeAdapter):
         self.pm = position_manager
         # Локальный кэш algo-ордеров: symbol -> {sl: {...}, tp: {...}}
         self._algo_orders: Dict[str, dict] = {}
+
+    async def get_user_trades(self, symbol: str, limit: int = 50) -> List[dict]:
+        """Получает историю сделок через api.py."""
+        return await self.api.get_user_trades(symbol, limit=limit)
 
     async def get_klines(self, symbol: str, interval: str, limit: int) -> Optional[list]:
         """Делегирует запрос к api.py."""

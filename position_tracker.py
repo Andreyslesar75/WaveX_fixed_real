@@ -232,12 +232,16 @@ class PositionTracker:
             # Проверяем условия закрытия
             event = await self._check_conditions(symbol, pos, price, now)
             if event:
+                log.info(f"[DEBUG-TRACKER] {symbol}: event returned from _check_conditions, reason={event.get('reason')}")
                 events.append(event)
+            else:
+                log.debug(f"[DEBUG-TRACKER] {symbol}: no event from _check_conditions")
             
             # Обновляем последнюю цену
             if symbol in self.positions:
                 self.positions[symbol]["last_watch_price"] = price
-        
+
+        log.info(f"[DEBUG-TRACKER] update_prices: total events={len(events)}")
         return events
     
     async def _check_conditions(
@@ -395,26 +399,53 @@ class PositionTracker:
         """
         pos = self.positions.get(symbol)
         if not pos:
+            log.warning(f"[DEBUG-TRACKER] {symbol}: pos is None, returning None")
             return None
-        
         if pos.get("closing"):
+            log.warning(f"[DEBUG-TRACKER] {symbol}: closing flag set, returning None")
             return None
-        
         final_qty = pos["remaining_qty"]
         if final_qty <= 0:
+            log.warning(f"[DEBUG-TRACKER] {symbol}: final_qty <= 0, removing and returning None")
             self.positions.pop(symbol, None)
             return None
-        
         pos["closing"] = True
-
+        
+        log.info(f"[DEBUG-TRACKER] {symbol}: entering _close_position, reason={reason}, final_qty={final_qty}")
+        
         try:
             # [НОВОЕ] Проверяем, есть ли позиция на бирже
             pos_info = await self.exchange.get_position_info(symbol)
             has_position = pos_info is not None and abs(pos_info.get("position_amt", 0)) > 0
+
+            log.info(f"[DEBUG-TRACKER] {symbol}: has_position={has_position}")
             
             if not has_position:
                 # [ИСПРАВЛЕНО] Позиции нет на бирже - отменяем SL/TP и удаляем локально
                 log.info(f"{symbol}: позиция уже закрыта на бирже, удаляем локально")
+
+                # Получаем историю сделок за последние 24 часа
+                try:
+                    trades = await self.exchange.get_user_trades(symbol, limit=50)
+                    if trades:
+                        # Ищем последнюю closing-сделку по этому символу
+                        closing_trades = [
+                            t for t in trades 
+                            if abs(t.get("quantity", 0) - final_qty) < 1e-6  # совпадает количество
+                        ]
+                        if closing_trades:
+                            last_trade = closing_trades[0]  # самая свежая
+                            real_exit_price = last_trade.get("price", exit_price)
+                            real_pnl = last_trade.get("realized_pnl", pnl)
+                            log.info(f"{symbol}: реальная цена выхода={real_exit_price}, PnL={real_pnl}")
+                            exit_price = real_exit_price
+                            pnl = real_pnl
+                        else:
+                            log.warning(f"{symbol}: не найдено closing-сделок в истории, использую расчётный PnL")
+                    else:
+                        log.warning(f"{symbol}: история сделок пуста, использую расчётный PnL")
+                except Exception as e:
+                    log.error(f"{symbol}: ошибка получения истории сделок: {e}")
                 
                 # Отменяем защитные ордера на бирже
                 sl_id = pos.get("sl_order_id")
@@ -441,6 +472,14 @@ class PositionTracker:
                 
                 # Удаляем позицию локально
                 self.positions.pop(symbol, None)
+
+                # Определяем причину закрытия
+                if pos.get("trail_active", False):
+                    reason = "TRAIL_SL"
+                elif pos.get("breakeven_set", False):
+                    reason = "BE_SL"
+                else:
+                    reason = "SL"  # предполагаем, что сработал SL
                 
                 # Считаем PnL
                 side = pos.get("side", "LONG")
@@ -474,6 +513,8 @@ class PositionTracker:
                     "tp1_price": pos.get("tp1_price"),
                     "tp2_price": pos.get("tp2_price"),
                 }
+            
+                log.info(f"[DEBUG-TRACKER] {symbol}: returning event with reason={reason}, pnl={pnl:+.2f}$")           
             
             # Закрываем через exchange
             close_order = await self.exchange.close_position(symbol, final_qty, exit_price)

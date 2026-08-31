@@ -297,6 +297,7 @@ class PositionManager:
     async def update_positions(self, prices: Dict[str, float]):
         async with self._update_lock:
             events = await self.tracker.update_prices(prices)
+            log.info(f"[DEBUG-RISK] update_positions: received {len(events)} events")
             # [НОВОЕ] Проверяем, изменился ли SL у открытых позиций
             sl_changed = False
             for symbol, pos in self.tracker.positions.items():
@@ -305,6 +306,7 @@ class PositionManager:
                     pos["_sl_changed"] = False
 
             for event in events:
+                log.info(f"[DEBUG-RISK] processing event: {event.get('symbol')} reason={event.get('reason')}")
                 await self._handle_position_event(event)
 
             # [НОВОЕ] Если SL изменился (трейлинг/breakeven), записываем equity
