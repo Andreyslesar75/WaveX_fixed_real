@@ -304,6 +304,12 @@ class PositionTracker:
         )
         
         if not pos.get("tp1_done", False) and tp1_condition:
+            # [НОВОЕ] Проверяем, что позиция ещё есть на бирже
+            pos_info = await self.exchange.get_position_info(symbol)
+            if not pos_info or abs(pos_info.get("position_amt", 0)) <= 0:
+                log.info(f"{symbol}: позиция уже закрыта на бирже, пропускаем TP1")
+                pos["tp1_done"] = True  # Помечаем как выполненный, чтобы не пытаться снова
+                return None
             target_tp1_qty = pos["quantity"] * pos.get("tp1_size_frac", Config.TP1_SIZE_FRAC)
             tp1_closed_qty = pos.get("tp1_closed_qty", 0.0)
             need_qty = target_tp1_qty - tp1_closed_qty
@@ -553,8 +559,7 @@ class PositionTracker:
                                 log.info(f"{symbol}: realizedPnl=0 из истории, использую расчётный PnL={pnl:+.2f}$")
                             else:
                                 log.info(f"{symbol}: реальная цена выхода={real_exit_price}, PnL={real_pnl}")
-
-                            log.info(f"{symbol}: реальная цена выхода={real_exit_price}, PnL={real_pnl}")
+                                
                             exit_price = real_exit_price
                             pnl = real_pnl
                         else:

@@ -269,11 +269,11 @@ class Config:
     # 9. СКОРИНГ СИГНАЛОВ
     # ================================================================
 
-    # Минимальный score для LONG.
-    SCORE_TRADE_THRESHOLD = 55
+    # Минимальный score для LONG.     55     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    SCORE_TRADE_THRESHOLD = 35
 
-    # Минимальный score для SHORT.
-    SCORE_TRADE_THRESHOLD_SHORT = 53
+    # Минимальный score для SHORT.     53     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    SCORE_TRADE_THRESHOLD_SHORT = 33
 
     # Score, начиная с которого сигнал показывается как "наблюдаемый".
     SCORE_WATCH_THRESHOLD = 28
@@ -330,10 +330,10 @@ class Config:
     SPREAD_SL_BUFFER_PCT = 0.1
 
     # TP1 = 1.5R
-    FIRST_TP_MULTIPLIER = 1.5
+    FIRST_TP_MULTIPLIER = 1.0
 
     # TP2 = 3.5R
-    SECOND_TP_MULTIPLIER = 3.5
+    SECOND_TP_MULTIPLIER = 1.1
 
     # Какая часть позиции закрывается на TP1.
     # 0.6 = 60%
