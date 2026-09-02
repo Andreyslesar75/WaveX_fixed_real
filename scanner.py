@@ -184,6 +184,13 @@ class WaveXScanner:
         if Config.REAL_TRADING:
             await self.pos_manager.refresh_balance()
 
+            # [НОВОЕ] Reconciliation при старте
+            recon_ok = await self.pos_manager.reconcile()
+            if not recon_ok:
+                log.error("Reconciliation провалился — бот не может безопасно торговать")
+                # Не падаем, но флаг торговля отключён
+                self.trading_enabled[0] = False
+
 
         self.pos_manager = PositionManager(
             self.rest_client,

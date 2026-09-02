@@ -6,6 +6,11 @@
 
 Управляет принятием решений (score, кулдауны, лимиты) и делегирует 
 исполнение и мониторинг позиций в PositionTracker через ExchangeAdapter.
+
+Теперь PositionManager:
+1. Создаёт Database и передаёт его в PositionTracker
+2. При старте восстанавливает открытые позиции из БД
+3. Это нужно для переживания рестарта бота
 """
 import asyncio
 import time
@@ -49,8 +54,11 @@ class PositionManager:
         else:
             self.exchange = PaperExchange()
 
+        # [НОВОЕ] 1.5. Создаём БД ПЕРЕД трекером, чтобы передать её внутрь
+        self.db = Database()
+
         # 2. Создаём трекер позиций
-        self.tracker = PositionTracker(self.exchange)
+        self.tracker = PositionTracker(self.exchange, db=self.db)
 
         # 3. Статистика и капитал
         self.capital = Config.PAPER_BALANCE if not is_real else 0.0
@@ -419,6 +427,53 @@ class PositionManager:
         # [НОВОЕ] Записываем equity по событию закрытия
         event_type = "tp1" if reason == "TP1" else "close"
         self.log_equity_event(event_type)
+
+     # ================================================================
+    # ВОССТАНОВЛЕНИЕ ПОЗИЦИЙ ИЗ БД
+    # ================================================================
+    def restore_positions_from_db(self):
+        """
+        [НОВОЕ]
+        Восстанавливает открытые позиции из БД при старте бота.
+        Должна вызываться после инициализации PositionManager.
+        """
+        log.info("[RISK] Восстановление позиций из БД...")
+        self.tracker.load_positions_from_db()
+        restored_count = len(self.tracker.positions)
+        if restored_count > 0:
+            log.info(f"[RISK] Восстановлено {restored_count} позиций из БД")
+        else:
+            log.info("[RISK] В БД нет открытых позиций")
+
+    async def reconcile(self) -> bool:
+        """
+        [НОВОЕ]
+        Выполняет reconciliation при старте.
+        Возвращает True, если всё ок и можно торговать.
+        """
+        if not self.is_real:
+            log.info("[RISK] Paper-режим — reconciliation пропущен")
+            return True
+
+        try:
+            from reconciliation import Reconciliator
+            reconciliator = Reconciliator(
+                rest_client=self.rest,
+                tracker=self.tracker,
+                db=self.db,
+                exchange=self.exchange,
+            )
+            success, result = await reconciliator.run()
+
+            log.info(
+                f"[RISK] Reconciliation: success={success}, "
+                f"в tracker теперь {len(self.tracker.positions)} позиций"
+            )
+            return success
+        
+        except Exception as e:
+            log.error(f"[RISK] Ошибка reconciliation: {e}")
+            return False
 
     # ================================================================
     # СВОЙСТВА ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ

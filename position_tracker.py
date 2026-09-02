@@ -41,8 +41,10 @@ class PositionTracker:
     Работает через ExchangeAdapter.
     """
     
-    def __init__(self, exchange: ExchangeAdapter):
+    def __init__(self, exchange: ExchangeAdapter, db=None):
         self.exchange = exchange
+        # [НОВОЕ] База данных для персистентности открытых позиций
+        self.db = db
         # Открытые позиции: symbol -> dict
         self.positions: Dict[str, dict] = {}
         # Шаги трейлинга из config
@@ -548,6 +550,30 @@ class PositionTracker:
                 
                 # Удаляем позицию локально
                 self.positions.pop(symbol, None)
+
+                # [ИСПРАВЛЕНО] Отменяем защитные ордера на бирже
+                sl_id = pos.get("sl_order_id")
+                tp_id = pos.get("tp_order_id")
+                sl_cid = pos.get("sl_client_id")
+                tp_cid = pos.get("tp_client_id")
+
+                if sl_id or tp_id:
+                    try:
+                        cancel_result = await self.exchange.cancel_sl_tp(
+                            symbol,
+                            sl_order_id=sl_id,
+                            tp_order_id=tp_id,
+                            sl_client_id=sl_cid,
+                            tp_client_id=tp_cid,
+                        )
+                        log.info(
+                            f"{symbol}: защитные ордера отменены после закрытия "
+                            f"(SL={'✓' if cancel_result.get('sl') else '✗'}, "
+                            f"TP={'✓' if cancel_result.get('tp') else '✗'})"
+                        )
+                    except Exception as e:
+                        log.error(f"{symbol}: ошибка отмены защитных ордеров: {e}")
+
 
                 # [НОВОЕ] Удаляем позицию из БД
                 if self.db:

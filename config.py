@@ -513,4 +513,4 @@ class Config:
     # В рабочем режиме должно быть False — иначе лог раздувается.
     # Включать только при отладке проблем.
     # [МОЖНО МЕНЯТЬ]
-    DEBUG_LOGS_ENABLED = False
+    DEBUG_LOGS_ENABLED = True
