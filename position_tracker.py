@@ -20,6 +20,13 @@
 
 Работает через ExchangeAdapter, не зная, paper это или real.
 Возвращает список событий закрытия, чтобы вызывающий код мог их обработать.
+
+Теперь PositionTracker синхронизирует открытые позиции с БД:
+- При открытии позиции — save_open_position()
+- При изменении SL (трейлинг/breakeven) — save_open_position()
+- При TP1 — save_open_position()
+- При полном закрытии — delete_open_position()
+- При старте — load_positions_from_db() восстанавливает позиции
 """
 import time
 from typing import Dict, List, Optional, Any
@@ -177,6 +184,14 @@ class PositionTracker:
                 
         
         self.positions[symbol] = pos
+
+        # [НОВОЕ] Сохраняем позицию в БД
+        if self.db:
+            try:
+                self.db.save_open_position(pos)
+                debug_log(f"[TRACKER] {symbol}: позиция сохранена в БД")
+            except Exception as e:
+                log.error(f"{symbol}: ошибка сохранения позиции в БД: {e}")
         
         log.info(
             f"TRACKER OPEN {symbol} [{side}] @ {fmt_price(actual_price)} "
@@ -228,6 +243,9 @@ class PositionTracker:
             adverse_pct = -profit_pct
             if adverse_pct > pos.get("mae", 0.0):
                 pos["mae"] = adverse_pct
+
+            # Запоминаем старый SL для отслеживания изменений
+            old_sl = pos.get("sl_price")
             
             # Проверяем условия закрытия
             event = await self._check_conditions(symbol, pos, price, now)
@@ -236,7 +254,16 @@ class PositionTracker:
                 events.append(event)
             else:
                 debug_log(f"[DEBUG-TRACKER] {symbol}: no event from _check_conditions")
-            
+
+                # [НОВОЕ] Если SL изменился (трейлинг/breakeven), сохраняем в БД
+                if pos.get("sl_price") != old_sl:
+                    if self.db:
+                        try:
+                            self.db.save_open_position(pos)
+                            debug_log(f"[TRACKER] {symbol}: SL изменён, позиция обновлена в БД")
+                        except Exception as e:
+                            log.error(f"{symbol}: ошибка обновления позиции в БД: {e}")
+
             # Обновляем последнюю цену
             if symbol in self.positions:
                 self.positions[symbol]["last_watch_price"] = price
@@ -329,6 +356,15 @@ class PositionTracker:
                         
                         # После TP1 — breakeven
                         await self._set_breakeven(symbol, pos)
+
+                        # [НОВОЕ] Сохраняем позицию в БД после TP1
+                        if self.db:
+                            try:
+                                self.db.save_open_position(pos)
+                                debug_log(f"[TRACKER] {symbol}: позиция обновлена в БД после TP1")
+                            except Exception as e:
+                                log.error(f"{symbol}: ошибка обновления позиции в БД после TP1: {e}")
+
                         
                         pnl = self._calc_pnl(pos["entry_price"], pos["tp1_price"], closed_qty, side)
                        
@@ -414,6 +450,13 @@ class PositionTracker:
         if final_qty <= 0:
             log.warning(f"[DEBUG-TRACKER] {symbol}: final_qty <= 0, removing and returning None")
             self.positions.pop(symbol, None)
+            # [НОВОЕ] Удаляем из БД
+            if self.db:
+                try:
+                    self.db.delete_open_position(symbol)
+                    debug_log(f"[TRACKER] {symbol}: позиция удалена из БД (qty=0)")
+                except Exception as e:
+                    log.error(f"{symbol}: ошибка удаления позиции из БД: {e}")
             return None
         pos["closing"] = True
         
@@ -424,107 +467,7 @@ class PositionTracker:
             pos_info = await self.exchange.get_position_info(symbol)
             has_position = pos_info is not None and abs(pos_info.get("position_amt", 0)) > 0
 
-            debug_log(f"[DEBUG-TRACKER] {symbol}: has_position={has_position}")
-            
-            # if not has_position:
-            #     # [ИСПРАВЛЕНО] Позиции нет на бирже - отменяем SL/TP и удаляем локально
-            #     log.info(f"{symbol}: позиция уже закрыта на бирже,  получаем данные из истории сделок")
-
-            #     # Сначала считаем расчётный PnL (на случай, если история сделок недоступна)
-            #     side = pos.get("side", "LONG")
-            #     pnl = self._calc_pnl(pos["entry_price"], exit_price, final_qty, side)
-
-            #     # Получаем историю сделок за последние 24 часа
-            #     try:
-            #         trades = await self.exchange.get_user_trades(symbol, limit=50)
-            #         if trades:
-            #             # Ищем последнюю closing-сделку по этому символу
-            #             closing_trades = [
-            #                 t for t in trades 
-            #                 if abs(t.get("quantity", 0) - final_qty) < 1e-6  # совпадает количество
-            #             ]
-            #             if closing_trades:
-            #                 last_trade = closing_trades[0]  # самая свежая
-            #                 real_exit_price = last_trade.get("price", exit_price)
-            #                 real_pnl = last_trade.get("realized_pnl", pnl)
-            #                 log.info(f"{symbol}: реальная цена выхода={real_exit_price}, PnL={real_pnl}")
-            #                 exit_price = real_exit_price
-            #                 pnl = real_pnl
-            #             else:
-            #                 log.warning(f"{symbol}: не найдено closing-сделок в истории, использую расчётный PnL")
-            #         else:
-            #             log.warning(f"{symbol}: история сделок пуста, использую расчётный PnL")
-            #     except Exception as e:
-            #         log.error(f"{symbol}: ошибка получения истории сделок: {e}")
-                
-            #     # Отменяем защитные ордера на бирже
-            #     sl_id = pos.get("sl_order_id")
-            #     tp_id = pos.get("tp_order_id")
-            #     sl_cid = pos.get("sl_client_id")
-            #     tp_cid = pos.get("tp_client_id")
-                
-            #     if sl_id or tp_id:
-            #         try:
-            #             cancel_result = await self.exchange.cancel_sl_tp(
-            #                 symbol,
-            #                 sl_order_id=sl_id,
-            #                 tp_order_id=tp_id,
-            #                 sl_client_id=sl_cid,
-            #                 tp_client_id=tp_cid,
-            #             )
-            #             log.info(
-            #                 f"{symbol}: защитные ордера отменены "
-            #                 f"(SL={'✓' if cancel_result.get('sl') else '✗'}, "
-            #                 f"TP={'✓' if cancel_result.get('tp') else '✗'})"
-            #             )
-            #         except Exception as e:
-            #             log.error(f"{symbol}: ошибка отмены защитных ордеров: {e}")
-                
-            #     # Удаляем позицию локально
-            #     self.positions.pop(symbol, None)
-
-            #     # Определяем причину закрытия
-            #     if pos.get("trail_active", False):
-            #         reason = "TRAIL_SL"
-            #     elif pos.get("breakeven_set", False):
-            #         reason = "BE_SL"
-            #     else:
-            #         reason = "SL"  # предполагаем, что сработал SL
-                
-            #     # Считаем PnL
-            #     side = pos.get("side", "LONG")
-            #     pnl = self._calc_pnl(pos["entry_price"], exit_price, final_qty, side)
-                
-            #     return {
-            #         "symbol": symbol,
-            #         "reason": reason,
-            #         "price": exit_price,
-            #         "qty": final_qty,
-            #         "pnl": pnl,
-            #         "entry_price": pos["entry_price"],
-            #         "entry_time": pos["entry_time"],
-            #         "size_usdt": pos["size_usdt"],
-            #         "score": pos["score"],
-            #         "side": side,
-            #         "mfe": pos.get("mfe", 0.0),
-            #         "mae": pos.get("mae", 0.0),
-            #         "sl_pct": pos.get("sl_pct", 0.0),
-            #         "tp_pct": pos.get("tp1_pct", 0.0),
-            #         # [НОВОЕ] Идентификаторы биржи
-            #         "entry_order_id": pos.get("entry_order_id"),
-            #         "exit_order_id": close_order.get("order_id") if close_order else None,
-            #         "sl_order_id": pos.get("sl_order_id"),
-            #         "tp_order_id": pos.get("tp_order_id"),
-            #         "sl_client_id": pos.get("sl_client_id"),
-            #         "tp_client_id": pos.get("tp_client_id"),
-            #         "client_order_id": pos.get("client_order_id"),
-            #         # [НОВОЕ] Реально выставленные уровни
-            #         "sl_price": pos.get("sl_price"),
-            #         "tp1_price": pos.get("tp1_price"),
-            #         "tp2_price": pos.get("tp2_price"),
-            #     }
-            
-            #     log.info(f"[DEBUG-TRACKER] {symbol}: returning event with reason={reason}, pnl={pnl:+.2f}$")           
+            debug_log(f"[DEBUG-TRACKER] {symbol}: has_position={has_position}")         
 
             if not has_position:
                 debug_log(f"[DEBUG-TRACKER] {symbol}: позиция закрыта на бирже, начинаем обработку")
@@ -605,6 +548,14 @@ class PositionTracker:
                 
                 # Удаляем позицию локально
                 self.positions.pop(symbol, None)
+
+                # [НОВОЕ] Удаляем позицию из БД
+                if self.db:
+                    try:
+                        self.db.delete_open_position(symbol)
+                        debug_log(f"[TRACKER] {symbol}: позиция удалена из БД (закрыта на бирже)")
+                    except Exception as e:
+                        log.error(f"{symbol}: ошибка удаления позиции из БД: {e}")
                 
                 # Определяем причину закрытия
                 original_reason = reason
@@ -679,6 +630,14 @@ class PositionTracker:
             
             # Позиция полностью закрыта
             self.positions.pop(symbol, None)
+
+            # [НОВОЕ] Удаляем позицию из БД
+            if self.db:
+                try:
+                    self.db.delete_open_position(symbol)
+                    debug_log(f"[TRACKER] {symbol}: позиция удалена из БД (полное закрытие)")
+                except Exception as e:
+                    log.error(f"{symbol}: ошибка удаления позиции из БД: {e}")
             
             log.debug(
                 f"TRACKER CLOSE {symbol} [{side}] @ {fmt_price(exit_price)} "
@@ -895,6 +854,41 @@ class PositionTracker:
     def get_position(self, symbol: str) -> Optional[dict]:
         """Возвращает позицию по символу или None."""
         return self.positions.get(symbol)
+
+    # [НОВОЕ] Метод для загрузки позиций из БД при старте
+    def load_positions_from_db(self):
+        """
+        Загружает открытые позиции из БД в self.positions.
+        Используется при рестарте бота для восстановления состояния.
+        """
+        if not self.db:
+            log.warning("[TRACKER] load_positions_from_db: db=None, пропускаю")
+            return
+
+        try:
+            db_positions = self.db.load_all_open_positions()
+            if not db_positions:
+                log.info("[TRACKER] load_positions_from_db: в БД нет открытых позиций")
+                return
+
+            for pos in db_positions:
+                symbol = pos.get("symbol")
+                if not symbol:
+                    continue
+
+                # Восстанавливаем позицию в self.positions
+                self.positions[symbol] = pos
+                log.info(
+                    f"[TRACKER] Восстановлена позиция из БД: {symbol} "
+                    f"[{pos.get('side', 'LONG')}] "
+                    f"qty={pos.get('quantity', 0):.6f} "
+                    f"SL={fmt_price(pos.get('sl_price', 0))}"
+                )
+
+            log.info(f"[TRACKER] Восстановлено {len(db_positions)} позиций из БД")
+
+        except Exception as e:
+            log.error(f"[TRACKER] Ошибка загрузки позиций из БД: {e}")
 
 
     async def _check_volume_decay(self, symbol: str) -> bool:
