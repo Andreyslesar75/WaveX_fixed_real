@@ -24,7 +24,7 @@ from datetime import datetime
 from typing import List, Dict, Any
 
 from config import Config
-from logger import log
+from logger import log, debug_log
 
 
 class Database:
@@ -174,7 +174,7 @@ class Database:
         """
         try:
             # [НОВОЕ] Отладочный лог
-            log.debug(
+            debug_log(
                 f"log_trade вызван: {trade_data.get('symbol')} "
                 f"pnl={trade_data.get('pnl_usdt'):.2f} "
                 f"reason={trade_data.get('exit_reason')}"

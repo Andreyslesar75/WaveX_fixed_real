@@ -306,3 +306,18 @@ def play_sound(kind: str):
     except Exception:
         # Если поток создать не удалось, пробуем просто проиграть.
         _play()
+
+
+def debug_log(msg: str):
+    """
+    [НОВОЕ]
+    Логирует отладочное сообщение только если DEBUG_LOGS_ENABLED=True.
+    Используется для временных DEBUG-логов, которые не нужны в продакшене.
+    
+    Пример использования:
+        from logger import debug_log
+        debug_log(f"[DEBUG-TRACKER] {symbol}: entering _close_position")
+    """
+    from config import Config
+    if Config.DEBUG_LOGS_ENABLED:
+        log.info(msg)

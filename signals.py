@@ -1270,6 +1270,11 @@ def compute_hybrid_score_short(
     # 5. BTC trend
     # ------------------------------------------------------------
 
+    # [TEMP CHANGE 2026-09-01]
+    # BTC penalty for SHORT was reduced by 30% to make shorts less sensitive to BTC strength.
+    # This does NOT change SCORE_TRADE_THRESHOLD_SHORT or any other entry threshold.
+    short_btc_penalty_factor = 0.7
+
     if btc_trend <= -1.0:
         score += 6
         reasons.append(f"BTC {btc_trend:+.1f}%")
@@ -1279,13 +1284,13 @@ def compute_hybrid_score_short(
 
     elif btc_trend > Config.BTC_DROP_WARN_PCT * 2:
         penalties.append(f"BTC растёт {btc_trend:+.1f}%")
-        score -= 1
+        score -= 1 * short_btc_penalty_factor
 
     elif btc_trend > 0.5:
-        score -= 1
+        score -= 1 * short_btc_penalty_factor
 
     if btc_trend > -Config.BTC_DROP_STOP_PCT * 0.5:
-        score -= 5
+        score -= 5 * short_btc_penalty_factor
 
     # ------------------------------------------------------------
     # 6. Ликвидность

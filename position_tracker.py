@@ -25,7 +25,7 @@ import time
 from typing import Dict, List, Optional, Any
 from config import Config
 from exchange_adapter import ExchangeAdapter
-from logger import log, fmt_price
+from logger import log, fmt_price, debug_log
 
 
 class PositionTracker:
@@ -232,16 +232,16 @@ class PositionTracker:
             # Проверяем условия закрытия
             event = await self._check_conditions(symbol, pos, price, now)
             if event:
-                log.info(f"[DEBUG-TRACKER] {symbol}: event returned from _check_conditions, reason={event.get('reason')}")
+                debug_log(f"[DEBUG-TRACKER] {symbol}: event returned from _check_conditions, reason={event.get('reason')}")
                 events.append(event)
             else:
-                log.debug(f"[DEBUG-TRACKER] {symbol}: no event from _check_conditions")
+                debug_log(f"[DEBUG-TRACKER] {symbol}: no event from _check_conditions")
             
             # Обновляем последнюю цену
             if symbol in self.positions:
                 self.positions[symbol]["last_watch_price"] = price
 
-        log.info(f"[DEBUG-TRACKER] update_prices: total events={len(events)}")
+        debug_log(f"[DEBUG-TRACKER] update_prices: total events={len(events)}")
         return events
     
     async def _check_conditions(
@@ -417,14 +417,14 @@ class PositionTracker:
             return None
         pos["closing"] = True
         
-        log.info(f"[DEBUG-TRACKER] {symbol}: entering _close_position, reason={reason}, final_qty={final_qty}")
+        debug_log(f"[DEBUG-TRACKER] {symbol}: entering _close_position, reason={reason}, final_qty={final_qty}")
         
         try:
             # [НОВОЕ] Проверяем, есть ли позиция на бирже
             pos_info = await self.exchange.get_position_info(symbol)
             has_position = pos_info is not None and abs(pos_info.get("position_amt", 0)) > 0
 
-            log.info(f"[DEBUG-TRACKER] {symbol}: has_position={has_position}")
+            debug_log(f"[DEBUG-TRACKER] {symbol}: has_position={has_position}")
             
             # if not has_position:
             #     # [ИСПРАВЛЕНО] Позиции нет на бирже - отменяем SL/TP и удаляем локально
@@ -527,25 +527,25 @@ class PositionTracker:
             #     log.info(f"[DEBUG-TRACKER] {symbol}: returning event with reason={reason}, pnl={pnl:+.2f}$")           
 
             if not has_position:
-                # log.info(f"[DEBUG-TRACKER] {symbol}: позиция закрыта на бирже, начинаем обработку")
+                debug_log(f"[DEBUG-TRACKER] {symbol}: позиция закрыта на бирже, начинаем обработку")
                 
                 # Сначала считаем расчётный PnL
                 side = pos.get("side", "LONG")
                 pnl = self._calc_pnl(pos["entry_price"], exit_price, final_qty, side)
-                # log.info(f"[DEBUG-TRACKER] {symbol}: расчётный PnL={pnl:+.2f}$")
+                debug_log(f"[DEBUG-TRACKER] {symbol}: расчётный PnL={pnl:+.2f}$")
                 
                 # Пытаемся получить реальную цену выхода из истории сделок
                 try:
-                    # log.info(f"[DEBUG-TRACKER] {symbol}: запрашиваем историю сделок...")
+                    debug_log(f"[DEBUG-TRACKER] {symbol}: запрашиваем историю сделок...")
                     trades = await self.exchange.get_user_trades(symbol, limit=50)
-                    # log.info(f"[DEBUG-TRACKER] {symbol}: получено {len(trades) if trades else 0} сделок из истории")
+                    debug_log(f"[DEBUG-TRACKER] {symbol}: получено {len(trades) if trades else 0} сделок из истории")
                     
                     if trades:
                         closing_trades = [
                             t for t in trades 
                             if abs(t.get("quantity", 0) - final_qty) < 1e-6
                         ]
-                        # log.info(f"[DEBUG-TRACKER] {symbol}: найдено {len(closing_trades)} closing-сделок")
+                        debug_log(f"[DEBUG-TRACKER] {symbol}: найдено {len(closing_trades)} closing-сделок")
                         
                         if closing_trades:
                             # Сортируем по времени и берём последнюю (exit-сделку)
@@ -571,7 +571,7 @@ class PositionTracker:
                     import traceback
                     log.error(traceback.format_exc())
                 
-                # log.info(f"[DEBUG-TRACKER] {symbol}: история сделок обработана, переходим к отмене SL/TP")
+                debug_log(f"[DEBUG-TRACKER] {symbol}: история сделок обработана, переходим к отмене SL/TP")
                 
                 # Отменяем защитные ордера на бирже
                 sl_id = pos.get("sl_order_id")
@@ -579,11 +579,11 @@ class PositionTracker:
                 sl_cid = pos.get("sl_client_id")
                 tp_cid = pos.get("tp_client_id")
                 
-                # log.info(f"[DEBUG-TRACKER] {symbol}: sl_id={sl_id}, tp_id={tp_id}, sl_cid={sl_cid}, tp_cid={tp_cid}")
+                debug_log(f"[DEBUG-TRACKER] {symbol}: sl_id={sl_id}, tp_id={tp_id}, sl_cid={sl_cid}, tp_cid={tp_cid}")
                 
                 if sl_id or tp_id:
                     try:
-                        # log.info(f"[DEBUG-TRACKER] {symbol}: отменяем защитные ордера...")
+                        debug_log(f"[DEBUG-TRACKER] {symbol}: отменяем защитные ордера...")
                         cancel_result = await self.exchange.cancel_sl_tp(
                             symbol,
                             sl_order_id=sl_id,
@@ -601,7 +601,7 @@ class PositionTracker:
                         import traceback
                         log.error(traceback.format_exc())
                 
-                log.info(f"[DEBUG-TRACKER] {symbol}: SL/TP отменены, удаляем позицию локально")
+                debug_log(f"[DEBUG-TRACKER] {symbol}: SL/TP отменены, удаляем позицию локально")
                 
                 # Удаляем позицию локально
                 self.positions.pop(symbol, None)
@@ -615,7 +615,7 @@ class PositionTracker:
                 else:
                     reason = "SL"
                 
-                log.info(f"[DEBUG-TRACKER] {symbol}: причина закрытия: {original_reason} -> {reason}")
+                debug_log(f"[DEBUG-TRACKER] {symbol}: причина закрытия: {original_reason} -> {reason}")
                 
                 event = {
                     "symbol": symbol,
@@ -644,8 +644,8 @@ class PositionTracker:
                     "tp2_price": pos.get("tp2_price"),
                 }
                 
-                # log.info(f"[DEBUG-TRACKER] {symbol}: event сформирован, возвращаем из _close_position")
-                log.info(f"[DEBUG-TRACKER] {symbol}: returning event with reason={reason}, pnl={pnl:+.2f}$")
+                debug_log(f"[DEBUG-TRACKER] {symbol}: event сформирован, возвращаем из _close_position")
+                debug_log(f"[DEBUG-TRACKER] {symbol}: returning event with reason={reason}, pnl={pnl:+.2f}$")
                 return event
 
             

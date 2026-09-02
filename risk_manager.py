@@ -16,7 +16,7 @@ from api import BinanceFuturesRestClient, to_binance_symbol
 from calculations import calc_sl_tp, calc_sl_tp_short, calculate_position_size, size_is_valid
 from config import Config
 from database import Database
-from logger import log, fmt_price, play_sound
+from logger import log, fmt_price, play_sound, debug_log
 
 # Импортируем новые компоненты
 from exchange_adapter import PaperExchange, RealExchange
@@ -297,7 +297,7 @@ class PositionManager:
     async def update_positions(self, prices: Dict[str, float]):
         async with self._update_lock:
             events = await self.tracker.update_prices(prices)
-            log.info(f"[DEBUG-RISK] update_positions: received {len(events)} events")
+            debug_log(f"[DEBUG-RISK] update_positions: received {len(events)} events")
             # [НОВОЕ] Проверяем, изменился ли SL у открытых позиций
             sl_changed = False
             for symbol, pos in self.tracker.positions.items():
@@ -306,7 +306,7 @@ class PositionManager:
                     pos["_sl_changed"] = False
 
             for event in events:
-                log.info(f"[DEBUG-RISK] processing event: {event.get('symbol')} reason={event.get('reason')}")
+                debug_log(f"[DEBUG-RISK] processing event: {event.get('symbol')} reason={event.get('reason')}")
                 await self._handle_position_event(event)
 
             # [НОВОЕ] Если SL изменился (трейлинг/breakeven), записываем equity
@@ -315,7 +315,7 @@ class PositionManager:
 
     async def _handle_position_event(self, event: dict):
         # [НОВОЕ] Отладочный лог
-        log.info(
+        debug_log(
             f"[DEBUG] _handle_position_event вызван: "
             f"{event.get('symbol')} reason={event.get('reason')} "
             f"pnl={event.get('pnl', 0):+.2f}$"
