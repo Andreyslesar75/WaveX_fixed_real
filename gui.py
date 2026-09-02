@@ -234,6 +234,11 @@ class WaveXGUI(tk.Tk):
         self.btn_stop.configure(command=self._on_stop)
         self.btn_export.configure(command=self._on_export)
 
+        # [НОВОЕ] Кнопка включения/отключения торговли
+        self.btn_toggle_trading = tk.Button(bf, text="⏸ Пауза", **bs)
+        self.btn_toggle_trading.pack(side=tk.LEFT, padx=4)
+        self.btn_toggle_trading.configure(command=self._on_toggle_trading)
+
         # [ИСПРАВЛЕНО]
         # Обработчик закрытия окна крестиком.
         self.protocol("WM_DELETE_WINDOW", self._on_window_close)
@@ -408,6 +413,24 @@ class WaveXGUI(tk.Tk):
         finally:
             self.destroy()
 
+    def _on_toggle_trading(self):
+        """
+        Обработчик кнопки включения/отключения торговли.
+        """
+        if self.scanner:
+            current_state = self.scanner.trading_enabled[0]
+            new_state = not current_state
+            self.scanner.trading_enabled[0] = new_state
+            
+            if new_state:
+                self.btn_toggle_trading.configure(text="⏸ Пауза")
+                self.lbl_status.configure(text="● Торговля включена", fg=self._c["GRN"])
+                log.info("Торговля включена")
+            else:
+                self.btn_toggle_trading.configure(text="▶ Возобновить")
+                self.lbl_status.configure(text="● Торговля отключена", fg=self._c["YEL"])
+                log.info("Торговля отключена — открытые позиции продолжают обрабатываться")
+
     # ================================================================
     # ОБНОВЛЕНИЕ GUI
     # ================================================================
@@ -580,6 +603,14 @@ class WaveXGUI(tk.Tk):
                     ),
                     tags=("green" if pnl_t >= 0 else "red",),
                 )
+
+            # [НОВОЕ] Обновляем статус торговли
+            trading_enabled = getattr(self.scanner, "trading_enabled", [True])[0]
+            if not trading_enabled:
+                self.lbl_status.configure(text="● Торговля отключена", fg=self._c["YEL"])
+            elif self.lbl_status.cget("text") == "● Торговля отключена":
+                # Если торговля включена, но статус показывает "отключена" — обновляем
+                self.lbl_status.configure(text="● Работает", fg=self._c["GRN"])
 
         except Exception as e:
             # GUI не должен падать из-за случайной ошибки чтения данных.

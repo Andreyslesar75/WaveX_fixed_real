@@ -120,6 +120,11 @@ class WaveXScanner:
         # Список фоновых asyncio-задач.
         self._tasks: List[asyncio.Task] = []
 
+        # Флаг включения/отключения торговли.
+        # Если False — новые позиции не открываются, но открытые продолжают обрабатываться.
+        # Используется список для thread-safe доступа из GUI.
+        self.trading_enabled = [True]
+
     # ================================================================
     # СЛУЖЕБНОЕ
     # ================================================================
@@ -1227,38 +1232,42 @@ class WaveXScanner:
 
                 open_fail_stats: Dict[str, int] = {}
 
-                for sig in tradeable:
-                    if len(self.pos_manager.positions) >= Config.MAX_OPEN_POSITIONS:
-                        break
+                # [НОВОЕ] Проверяем, включена ли торговля
+                if not self.trading_enabled[0]:
+                    log.info("Торговля отключена — новые позиции не открываются")
+                else:
+                    for sig in tradeable:
+                        if len(self.pos_manager.positions) >= Config.MAX_OPEN_POSITIONS:
+                            break
 
-                    ok, reason = await self.pos_manager.open_position(
-                        sig["symbol"],
-                        sig.get("entry_ref_price", sig["price"]),
-                        sig["score"],
-                        sig["confidence"],
-                        sig.get("klines_1h"),
-                        sig.get("high24", 0),
-                        sig.get("low24", 0),
-                        sig.get("structural_level"),
-                        sig.get("spread_pct", 0.0),
-                        side=sig.get("side", "LONG"),
-                        btc_trend=self.btc_trend,
-                    )
-
-                    if ok:
-                        opened += 1
-
-                    else:
-                        open_fail_stats[reason] = (
-                            open_fail_stats.get(reason, 0) + 1
+                        ok, reason = await self.pos_manager.open_position(
+                            sig["symbol"],
+                            sig.get("entry_ref_price", sig["price"]),
+                            sig["score"],
+                            sig["confidence"],
+                            sig.get("klines_1h"),
+                            sig.get("high24", 0),
+                            sig.get("low24", 0),
+                            sig.get("structural_level"),
+                            sig.get("spread_pct", 0.0),
+                            side=sig.get("side", "LONG"),
+                            btc_trend=self.btc_trend,
                         )
 
-                        log.info(
-                            f"  ✗ {sig['symbol']} "
-                            f"[{sig.get('side', 'LONG')}] "
-                            f"score={sig['score']:.0f} "
-                            f"не открыта: {reason}"
-                        )
+                        if ok:
+                            opened += 1
+
+                        else:
+                            open_fail_stats[reason] = (
+                                open_fail_stats.get(reason, 0) + 1
+                            )
+
+                            log.info(
+                                f"  ✗ {sig['symbol']} "
+                                f"[{sig.get('side', 'LONG')}] "
+                                f"score={sig['score']:.0f} "
+                                f"не открыта: {reason}"
+                            )
 
                 # ------------------------------------------------------------
                 # 8. Итоги цикла
