@@ -16,6 +16,7 @@
   Это правильнее для базы данных.
 - Добавлены индексы, чтобы база работала быстрее при большом количестве сделок.
 - Функция close() стала безопасной для повторного вызова.
+- [НОВОЕ] Добавлена таблица open_positions для хранения открытых позиций.
 """
 
 import sqlite3
@@ -114,6 +115,43 @@ class Database:
                     total_pnl REAL,
                     open_positions INTEGER,
                     event_type TEXT DEFAULT 'periodic'
+                );
+
+                CREATE TABLE IF NOT EXISTS open_positions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    symbol TEXT UNIQUE NOT NULL,
+                    side TEXT NOT NULL,
+                    entry_price REAL NOT NULL,
+                    quantity REAL NOT NULL,
+                    remaining_qty REAL NOT NULL,
+                    entry_time REAL NOT NULL,
+                    size_usdt REAL NOT NULL,
+                    score REAL,
+                    confidence TEXT,
+                    sl_source TEXT,
+                    sl_price REAL,
+                    sl_pct REAL,
+                    tp1_price REAL,
+                    tp1_pct REAL,
+                    tp2_price REAL,
+                    tp2_pct REAL,
+                    tp1_done INTEGER DEFAULT 0,
+                    tp1_closed_qty REAL DEFAULT 0.0,
+                    breakeven_set INTEGER DEFAULT 0,
+                    trail_active INTEGER DEFAULT 0,
+                    mfe REAL DEFAULT 0.0,
+                    mae REAL DEFAULT 0.0,
+                    realized_pnl REAL DEFAULT 0.0,
+                    entry_order_id TEXT,
+                    client_order_id TEXT,
+                    sl_order_id INTEGER,
+                    sl_client_id TEXT,
+                    tp_order_id INTEGER,
+                    tp_client_id TEXT,
+                    min_notional REAL,
+                    full_strategy INTEGER DEFAULT 1,
+                    tp1_size_frac REAL DEFAULT 0.6,
+                    updated_at TEXT
                 );
             """)
             self.conn.commit()
@@ -237,6 +275,155 @@ class Database:
             self.conn.commit()
         except Exception as e:
             log.error(f"Ошибка записи сделки в БД: {e}")
+
+    # ================================================================
+    # ОТКРЫТЫЕ ПОЗИЦИИ
+    # ================================================================
+
+    def save_open_position(self, pos: dict):
+        """
+        [НОВОЕ]
+        Сохраняет или обновляет открытую позицию в БД.
+        Использует INSERT OR REPLACE (UPSERT) по symbol.
+        pos — словарь с полями позиции из position_tracker.
+        """
+        if not pos or not pos.get("symbol"):
+            log.warning("save_open_position: пустая позиция или нет symbol")
+            return
+
+        try:
+            with self._lock:
+                self.conn.execute("""
+                    INSERT OR REPLACE INTO open_positions (
+                        symbol, side, entry_price, quantity, remaining_qty,
+                        entry_time, size_usdt, score, confidence, sl_source,
+                        sl_price, sl_pct, tp1_price, tp1_pct, tp2_price, tp2_pct,
+                        tp1_done, tp1_closed_qty, breakeven_set, trail_active,
+                        mfe, mae, realized_pnl,
+                        entry_order_id, client_order_id,
+                        sl_order_id, sl_client_id,
+                        tp_order_id, tp_client_id,
+                        min_notional, full_strategy, tp1_size_frac,
+                        updated_at
+                    ) VALUES (
+                        ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?,
+                        ?, ?, ?,
+                        ?, ?,
+                        ?, ?,
+                        ?, ?,
+                        ?, ?, ?,
+                        ?
+                    )
+                """, (
+                    pos.get("symbol"),
+                    pos.get("side", "LONG"),
+                    pos.get("entry_price", 0.0),
+                    pos.get("quantity", 0.0),
+                    pos.get("remaining_qty", 0.0),
+                    pos.get("entry_time", 0.0),
+                    pos.get("size_usdt", 0.0),
+                    pos.get("score", 0.0),
+                    pos.get("confidence", "MEDIUM"),
+                    pos.get("sl_source", "unknown"),
+                    pos.get("sl_price", 0.0),
+                    pos.get("sl_pct", 0.0),
+                    pos.get("tp1_price", 0.0),
+                    pos.get("tp1_pct", 0.0),
+                    pos.get("tp2_price", 0.0),
+                    pos.get("tp2_pct", 0.0),
+                    1 if pos.get("tp1_done", False) else 0,
+                    pos.get("tp1_closed_qty", 0.0),
+                    1 if pos.get("breakeven_set", False) else 0,
+                    1 if pos.get("trail_active", False) else 0,
+                    pos.get("mfe", 0.0),
+                    pos.get("mae", 0.0),
+                    pos.get("realized_pnl", 0.0),
+                    pos.get("entry_order_id"),
+                    pos.get("client_order_id"),
+                    pos.get("sl_order_id"),
+                    pos.get("sl_client_id"),
+                    pos.get("tp_order_id"),
+                    pos.get("tp_client_id"),
+                    pos.get("min_notional", 0.0),
+                    1 if pos.get("full_strategy", True) else 0,
+                    pos.get("tp1_size_frac", 0.6),
+                    datetime.now().isoformat(),
+                ))
+                self.conn.commit()
+                debug_log(f"[DB] save_open_position: {pos.get('symbol')} saved")
+        except Exception as e:
+            log.error(f"Ошибка сохранения открытой позиции: {e}")
+
+    def delete_open_position(self, symbol: str):
+        """
+        [НОВОЕ]
+        Удаляет открытую позицию из БД по symbol.
+        Вызывается при полном закрытии позиции.
+        """
+        if not symbol:
+            return
+
+        try:
+            with self._lock:
+                self.conn.execute(
+                    "DELETE FROM open_positions WHERE symbol = ?",
+                    (symbol,)
+                )
+                self.conn.commit()
+                debug_log(f"[DB] delete_open_position: {symbol} deleted")
+        except Exception as e:
+            log.error(f"Ошибка удаления открытой позиции {symbol}: {e}")
+
+    def load_all_open_positions(self) -> List[dict]:
+        """
+        [НОВОЕ]
+        Загружает все открытые позиции из БД.
+        Используется при рестарте бота для восстановления состояния.
+        Возвращает список словарей.
+        """
+        with self._lock:
+            try:
+                cur = self.conn.cursor()
+                cur.execute("SELECT * FROM open_positions ORDER BY id")
+                cols = [d[0] for d in cur.description]
+                rows = cur.fetchall()
+
+                positions = []
+                for row in rows:
+                    pos = dict(zip(cols, row))
+                    # Конвертируем INTEGER обратно в bool
+                    pos["tp1_done"] = bool(pos.get("tp1_done", 0))
+                    pos["breakeven_set"] = bool(pos.get("breakeven_set", 0))
+                    pos["trail_active"] = bool(pos.get("trail_active", 0))
+                    pos["full_strategy"] = bool(pos.get("full_strategy", 1))
+                    positions.append(pos)
+
+                log.info(f"[DB] load_all_open_positions: загружено {len(positions)} позиций")
+                return positions
+            except Exception as e:
+                log.error(f"Ошибка загрузки открытых позиций: {e}")
+                return []
+
+    def clear_open_positions(self):
+        """
+        [НОВОЕ]
+        Полностью очищает таблицу open_positions.
+        Используется при reconciliation, если нужно пересчитать всё с нуля.
+        """
+        try:
+            with self._lock:
+                self.conn.execute("DELETE FROM open_positions")
+                self.conn.commit()
+                log.info("[DB] clear_open_positions: таблица очищена")
+        except Exception as e:
+            log.error(f"Ошибка очистки open_positions: {e}")
+
+    # ================================================================
+    # СДЕЛКИ
+    # ================================================================
 
     def log_equity(self, capital: float, total_pnl: float, open_positions: int, event_type: str = "periodic"):
         """Записывает снимок капитала."""
