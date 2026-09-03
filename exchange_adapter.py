@@ -592,43 +592,43 @@ class RealExchange(ExchangeAdapter):
         Проверяет статус SL на бирже.
         Использует локальный кэш algo-ордеров + get_algo_order_status.
         """
-        pos_info = await self.pm.get_position_info(symbol)
-        if not pos_info:
-            return None  # Позиции нет
-        
-        cached = self._algo_orders.get(symbol, {})
-        sl_info = cached.get("sl")
-        
-        if not sl_info:
-            # В кэше нет SL — значит мы его не ставили или он уже отменён
+        try:
+            # Запрашиваем реальный список algo-ордеров с биржи
+            algo_orders = await self.api.get_open_algo_orders(symbol)
+            
+            if not algo_orders:
+                return "missing"
+            
+            # Ищем SL-ордер (STOP_MARKET или STOP с closePosition)
+            for o in algo_orders:
+                order_type = o.get("type", "").upper()
+                close_pos = o.get("close_position", False)
+                side = o.get("side", "").upper()
+                
+                # SL для LONG = SELL STOP_MARKET с closePosition
+                # SL для SHORT = BUY STOP_MARKET с closePosition
+                if order_type in ("STOP_MARKET", "STOP") and close_pos:
+                    status = o.get("status", "").upper()
+                    if status in ("NEW", "ACTIVE"):
+                        # Обновляем кэш
+                        if not hasattr(self, '_algo_orders'):
+                            self._algo_orders = {}
+                        if symbol not in self._algo_orders:
+                            self._algo_orders[symbol] = {}
+                        self._algo_orders[symbol]["sl"] = {
+                            "order_id": o.get("algo_id"),
+                            "client_order_id": o.get("client_algo_id"),
+                        }
+                        return "active"
+                    elif status in ("FILLED", "TRIGGERED"):
+                        return "triggered"
+            
+            # Algo-ордера есть, но SL среди них нет
             return "missing"
-        
-        # Проверяем реальный статус на бирже
-        status_resp = await self.api.get_algo_order_status(
-            symbol,
-            algo_id=sl_info["order_id"],
-            client_algo_id=sl_info["client_order_id"],
-        )
-        
-        if not status_resp:
-            # Ордер не найден на бирже — значит он исполнился или был отменён
-            # Удаляем из кэша
-            self._algo_orders[symbol].pop("sl", None)
-            return "missing"
-        
-        algo_status = status_resp.get("status")
-        if algo_status == "NEW":
-            return "active"
-        elif algo_status in ("CANCELED", "EXPIRED"):
-            # Ордер отменён/истёк — удаляем из кэша
-            self._algo_orders[symbol].pop("sl", None)
-            return "missing"
-        elif algo_status == "TRIGGERED":
-            # SL сработал — удаляем из кэша
-            self._algo_orders[symbol].pop("sl", None)
-            return "triggered"
-        else:
-            return "unknown"
+            
+        except Exception as e:
+            log.error(f"{symbol}: ошибка проверки статуса SL: {e}")
+            return None
     
     async def get_balance(self, asset: str = "USDT") -> float:
         """Получает баланс через api.py."""

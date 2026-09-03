@@ -1,793 +1,155 @@
-2026-09-03 13:53:44,529 [INFO] ExchangeFiltersCache инициализирован: 843 символов, 1026 leverage brackets
-2026-09-03 13:53:45,278 [INFO] ExchangeFiltersCache: фоновое обновление запущено (интервал 10800с)
-2026-09-03 13:53:45,991 [INFO] [RECON] === Начало reconciliation ===
-2026-09-03 13:53:45,991 [INFO] [DB] load_all_open_positions: загружено 0 позиций
-2026-09-03 13:53:45,991 [INFO] [RECON] В БД найдено 0 открытых позиций
-2026-09-03 13:53:46,281 [INFO] [RECON] На бирже найдено 0 позиций
-2026-09-03 13:53:46,553 [INFO] [RECON] На бирже найдено 0 открытых ордеров
-2026-09-03 13:53:46,554 [INFO] [RECON] === Reconciliation завершён за 0.56с: расхождений нет ===
-2026-09-03 13:53:48,536 [INFO] [RISK] Reconciliation: success=True, в tracker теперь 0 позиций
-2026-09-03 13:53:49,689 [INFO] WS подключён (Binance Futures)
-2026-09-03 13:53:49,690 [INFO] === Cycle 1 ===
-2026-09-03 13:53:50,066 [INFO] Найдено 30 кандидатов
-2026-09-03 13:53:50,066 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:53:50,067 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:53:52,477 [INFO] Торговля отключена — новые позиции не открываются
-2026-09-03 13:53:52,477 [INFO] 📊 Инспектор цикл 1: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.16%
-2026-09-03 13:53:52,477 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 13:53:52,477 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:53:59,811 [INFO] Торговля включена
-2026-09-03 13:54:07,483 [INFO] === Cycle 2 ===
-2026-09-03 13:54:07,885 [INFO] Найдено 30 кандидатов
-2026-09-03 13:54:07,886 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:54:07,886 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:54:09,076 [INFO] 📊 Инспектор цикл 2: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.16%
-2026-09-03 13:54:09,076 [INFO]    пропущено: нет_импульса_и_не_ракета=29, нет_импульса_вниз_и_не_обвал=29, нет_отката_от_хая=1, глубина<$5000=1
-2026-09-03 13:54:09,076 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:54:24,075 [INFO] === Cycle 3 ===
-2026-09-03 13:54:24,374 [INFO] Найдено 30 кандидатов
-2026-09-03 13:54:24,374 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:54:24,375 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:54:24,463 [INFO] 📊 Инспектор цикл 3: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.16%
-2026-09-03 13:54:26,962 [INFO]    пропущено: нет_импульса_и_не_ракета=29, нет_импульса_вниз_и_не_обвал=29, нет_отката_от_хая=1, глубина<$5000=1
-2026-09-03 13:54:26,962 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:54:41,946 [INFO] === Cycle 4 ===
-2026-09-03 13:54:42,325 [INFO] Найдено 30 кандидатов
-2026-09-03 13:54:43,198 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:54:43,354 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:54:46,189 [INFO] 📊 Инспектор цикл 4: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.16%
-2026-09-03 13:54:46,190 [INFO]    пропущено: нет_импульса_и_не_ракета=29, нет_импульса_вниз_и_не_обвал=29, нет_отката_от_хая=1, глубина<$5000=1
-2026-09-03 13:54:46,190 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:55:01,168 [INFO] === Cycle 5 ===
-2026-09-03 13:55:01,478 [INFO] Найдено 30 кандидатов
-2026-09-03 13:55:01,478 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:55:01,478 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:55:02,131 [INFO] 📊 Инспектор цикл 5: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.16%
-2026-09-03 13:55:02,132 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 13:55:02,132 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:55:17,118 [INFO] === Cycle 6 ===
-2026-09-03 13:55:17,509 [INFO] Найдено 30 кандидатов
-2026-09-03 13:55:17,510 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:55:17,510 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:55:17,602 [INFO] 📊 Инспектор цикл 6: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.16%
-2026-09-03 13:55:17,602 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 13:55:17,602 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:55:32,609 [INFO] === Cycle 7 ===
-2026-09-03 13:55:33,003 [INFO] Найдено 30 кандидатов
-2026-09-03 13:55:34,520 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:55:34,521 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:55:36,888 [INFO] 📊 Инспектор цикл 7: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.16%
-2026-09-03 13:55:36,889 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 13:55:36,889 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:55:51,872 [INFO] === Cycle 8 ===
-2026-09-03 13:55:52,369 [INFO] Найдено 30 кандидатов
-2026-09-03 13:55:52,369 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:55:52,369 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:55:52,454 [INFO] 📊 Инспектор цикл 8: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.22%
-2026-09-03 13:55:52,454 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 13:55:52,454 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:56:07,457 [INFO] === Cycle 9 ===
-2026-09-03 13:56:07,844 [INFO] Найдено 30 кандидатов
-2026-09-03 13:56:07,844 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:56:07,844 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:56:08,491 [INFO] 📊 Инспектор цикл 9: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.22%
-2026-09-03 13:56:08,491 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 13:56:08,491 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:56:23,492 [INFO] === Cycle 10 ===
-2026-09-03 13:56:23,881 [INFO] Найдено 30 кандидатов
-2026-09-03 13:56:23,881 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:56:23,881 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:56:26,259 [INFO] 📊 Инспектор цикл 10: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.22%
-2026-09-03 13:56:26,259 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 13:56:26,259 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:56:41,243 [INFO] === Cycle 11 ===
-2026-09-03 13:56:41,647 [INFO] Найдено 30 кандидатов
-2026-09-03 13:56:41,648 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:56:41,648 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:56:41,733 [INFO] 📊 Инспектор цикл 11: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.22%
-2026-09-03 13:56:41,734 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 13:56:41,734 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:56:56,735 [INFO] === Cycle 12 ===
-2026-09-03 13:56:57,033 [INFO] Найдено 30 кандидатов
-2026-09-03 13:56:57,033 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:56:57,033 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:56:58,465 [INFO] 📊 Инспектор цикл 12: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.19%
-2026-09-03 13:56:59,207 [INFO]    пропущено: нет_импульса_и_не_ракета=29, нет_импульса_вниз_и_не_обвал=29, нет_отката_от_хая=1, глубина<$5000=1
-2026-09-03 13:56:59,207 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:57:14,201 [INFO] === Cycle 13 ===
-2026-09-03 13:57:14,607 [INFO] Найдено 30 кандидатов
-2026-09-03 13:57:14,607 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:57:14,607 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:57:16,966 [INFO] 📊 Инспектор цикл 13: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.19%
-2026-09-03 13:57:16,967 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=29, нет_импульса_и_не_ракета=28, нет_отката_от_хая=2, глубина<$5000=1
-2026-09-03 13:57:16,967 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:57:31,951 [INFO] === Cycle 14 ===
-2026-09-03 13:57:32,356 [INFO] Найдено 30 кандидатов
-2026-09-03 13:57:34,207 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:57:34,207 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:57:34,584 [INFO] 📊 Инспектор цикл 14: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.19%
-2026-09-03 13:57:34,585 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=29, нет_импульса_и_не_ракета=28, нет_отката_от_хая=2, глубина<$5000=1
-2026-09-03 13:57:34,585 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:57:49,570 [INFO] === Cycle 15 ===
-2026-09-03 13:57:49,878 [INFO] Найдено 30 кандидатов
-2026-09-03 13:57:50,924 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:57:50,924 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:57:51,915 [INFO] 📊 Инспектор цикл 15: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.16%
-2026-09-03 13:57:51,916 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=29, нет_импульса_и_не_ракета=28, нет_отката_от_хая=2, глубина<$5000=1
-2026-09-03 13:57:51,916 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:58:06,927 [INFO] === Cycle 16 ===
-2026-09-03 13:58:07,352 [INFO] Найдено 30 кандидатов
-2026-09-03 13:58:07,353 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:58:07,353 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:58:10,240 [INFO] 📊 Инспектор цикл 16: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.16%
-2026-09-03 13:58:11,957 [INFO]    пропущено: нет_импульса_и_не_ракета=29, нет_импульса_вниз_и_не_обвал=29, нет_отката_от_хая=1, глубина<$5000=1
-2026-09-03 13:58:11,958 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:58:26,947 [INFO] === Cycle 17 ===
-2026-09-03 13:58:27,334 [INFO] Найдено 30 кандидатов
-2026-09-03 13:58:28,479 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:58:28,479 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:58:28,592 [INFO] 📊 Инспектор цикл 17: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.16%
-2026-09-03 13:58:28,657 [INFO]    пропущено: нет_импульса_и_не_ракета=29, нет_импульса_вниз_и_не_обвал=29, нет_отката_от_хая=1, глубина<$5000=1
-2026-09-03 13:58:28,657 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:58:43,654 [INFO] === Cycle 18 ===
-2026-09-03 13:58:44,056 [INFO] Найдено 30 кандидатов
-2026-09-03 13:58:44,056 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:58:44,057 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:58:45,372 [INFO] 📊 Инспектор цикл 18: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.16%
-2026-09-03 13:58:45,373 [INFO]    пропущено: нет_импульса_и_не_ракета=29, нет_импульса_вниз_и_не_обвал=29, нет_отката_от_хая=1, глубина<$5000=1
-2026-09-03 13:58:45,373 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:59:00,375 [INFO] === Cycle 19 ===
-2026-09-03 13:59:00,682 [INFO] Найдено 30 кандидатов
-2026-09-03 13:59:00,682 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:59:00,682 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:59:03,074 [INFO] 📊 Инспектор цикл 19: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.13%
-2026-09-03 13:59:03,074 [INFO]    пропущено: нет_импульса_и_не_ракета=29, нет_импульса_вниз_и_не_обвал=29, нет_отката_от_хая=1, глубина<$5000=1
-2026-09-03 13:59:03,075 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:59:18,071 [INFO] === Cycle 20 ===
-2026-09-03 13:59:18,457 [INFO] Найдено 30 кандидатов
-2026-09-03 13:59:20,980 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:59:20,981 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:59:21,901 [INFO] 📊 Инспектор цикл 20: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.13%
-2026-09-03 13:59:21,901 [INFO]    пропущено: нет_импульса_и_не_ракета=29, нет_импульса_вниз_и_не_обвал=29, нет_отката_от_хая=1, глубина<$5000=1
-2026-09-03 13:59:21,901 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:59:36,904 [INFO] === Cycle 21 ===
-2026-09-03 13:59:37,211 [INFO] Найдено 30 кандидатов
-2026-09-03 13:59:37,212 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:59:37,212 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:59:38,213 [INFO] 📊 Инспектор цикл 21: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.13%
-2026-09-03 13:59:38,214 [INFO]    пропущено: нет_импульса_и_не_ракета=29, нет_импульса_вниз_и_не_обвал=29, нет_отката_от_хая=1, глубина<$5000=1
-2026-09-03 13:59:38,214 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 13:59:53,197 [INFO] === Cycle 22 ===
-2026-09-03 13:59:53,738 [INFO] Найдено 30 кандидатов
-2026-09-03 13:59:53,739 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 13:59:53,739 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 13:59:56,368 [INFO] 📊 Инспектор цикл 22: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.18%
-2026-09-03 13:59:56,368 [INFO]    пропущено: нет_импульса_и_не_ракета=29, нет_импульса_вниз_и_не_обвал=29, нет_отката_от_хая=1, глубина<$5000=1
-2026-09-03 13:59:56,368 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 14:00:11,368 [INFO] === Cycle 23 ===
-2026-09-03 14:00:11,688 [INFO] Найдено 30 кандидатов
-2026-09-03 14:00:12,492 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:00:12,492 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:00:13,210 [INFO] 📊 Инспектор цикл 23: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.18%
-2026-09-03 14:00:13,210 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 14:00:13,211 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 14:00:28,199 [INFO] === Cycle 24 ===
-2026-09-03 14:00:28,586 [INFO] Найдено 30 кандидатов
-2026-09-03 14:00:28,586 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:00:28,587 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:00:29,242 [INFO] 📊 Инспектор цикл 24: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.18%
-2026-09-03 14:00:29,242 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 14:00:29,242 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 14:00:44,244 [INFO] === Cycle 25 ===
-2026-09-03 14:00:44,633 [INFO] Найдено 30 кандидатов
-2026-09-03 14:00:49,204 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:00:49,205 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:00:51,604 [INFO] 📊 Инспектор цикл 25: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.18%
-2026-09-03 14:00:51,604 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 14:00:51,604 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 14:01:06,603 [INFO] === Cycle 26 ===
-2026-09-03 14:01:06,910 [INFO] Найдено 30 кандидатов
-2026-09-03 14:01:06,910 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:01:06,910 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:01:07,621 [INFO] 📊 Инспектор цикл 26: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.19%
-2026-09-03 14:01:10,804 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 14:01:10,805 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 14:01:25,792 [INFO] === Cycle 27 ===
-2026-09-03 14:01:26,173 [INFO] Найдено 30 кандидатов
-2026-09-03 14:01:26,173 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:01:26,173 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:01:26,268 [INFO] 📊 Инспектор цикл 27: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.19%
-2026-09-03 14:01:26,268 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 14:01:26,268 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 14:01:41,246 [INFO] === Cycle 28 ===
-2026-09-03 14:01:41,625 [INFO] Найдено 30 кандидатов
-2026-09-03 14:01:41,625 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:01:41,625 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:01:43,954 [INFO] 📊 Инспектор цикл 28: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.19%
-2026-09-03 14:01:43,954 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 14:01:43,955 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 14:01:58,948 [INFO] === Cycle 29 ===
-2026-09-03 14:01:59,263 [INFO] Найдено 30 кандидатов
-2026-09-03 14:01:59,263 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:01:59,263 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:01:59,965 [INFO] 📊 Инспектор цикл 29: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.21%
-2026-09-03 14:02:01,600 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 14:02:01,601 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 14:02:16,615 [INFO] === Cycle 30 ===
-2026-09-03 14:02:16,999 [INFO] Найдено 30 кандидатов
-2026-09-03 14:02:16,999 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:02:17,000 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:02:17,101 [INFO] 📊 Инспектор цикл 30: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.21%
-2026-09-03 14:02:17,102 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 14:02:17,102 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 14:02:32,101 [INFO] === Cycle 31 ===
-2026-09-03 14:02:32,485 [INFO] Найдено 30 кандидатов
-2026-09-03 14:02:32,485 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:02:32,485 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:02:34,824 [INFO] 📊 Инспектор цикл 31: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.21%
-2026-09-03 14:02:34,992 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 14:02:34,992 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 14:02:49,992 [INFO] === Cycle 32 ===
-2026-09-03 14:02:50,378 [INFO] Найдено 30 кандидатов
-2026-09-03 14:02:50,378 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:02:50,379 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:02:51,085 [INFO] 📊 Инспектор цикл 32: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.21%
-2026-09-03 14:02:53,522 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 14:02:53,522 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 14:03:08,491 [INFO] === Cycle 33 ===
-2026-09-03 14:03:08,800 [INFO] Найдено 30 кандидатов
-2026-09-03 14:03:08,975 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:03:08,976 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:03:09,624 [INFO] 📊 Инспектор цикл 33: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.24%
-2026-09-03 14:03:09,624 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=29, нет_отката_от_хая=1
-2026-09-03 14:03:09,625 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 0/2
-2026-09-03 14:03:24,619 [INFO] === Cycle 34 ===
-2026-09-03 14:03:25,025 [INFO] Найдено 30 кандидатов
-2026-09-03 14:03:25,513 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:03:25,514 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:03:28,158 [INFO] SPK_USDT: размер 5.28 USDT < минимума, но ALLOW_MIN_POSITION_OVERRIDE=True — использую 11.00 USDT
-2026-09-03 14:03:28,636 [INFO] SPKUSDT: плечо выставлено x1
-2026-09-03 14:03:30,224 [INFO] SPK_USDT: SL установлен на 0.021821563710365244 (side=SELL, position=LONG, order_id=2000001405956675)
-2026-09-03 14:03:30,783 [INFO] SPK_USDT: TP установлен на 0.02370827991859823, qty=483.0 (side=SELL, position=LONG, order_id=2000001405956706)
-2026-09-03 14:03:30,783 [INFO] SPK_USDT: полная стратегия, TP1_SIZE_FRAC=0.52
-2026-09-03 14:03:32,199 [INFO] [DB] save_open_position: SPK_USDT saved
-2026-09-03 14:03:32,199 [INFO] [TRACKER] SPK_USDT: позиция сохранена в БД
-2026-09-03 14:03:32,199 [INFO] TRACKER OPEN SPK_USDT [LONG] @ $0.022720 qty=483.000000 size=$11.0 SL=$0.021822 (4.0%) TP1=$0.023618 (4.0%) TP2=$0.023708 (4.3%)
-2026-09-03 14:03:32,514 [INFO] 📊 Инспектор цикл 34: кандидатов=30 | проходных=1 | открыто=1 | BTC=+0.24%
-2026-09-03 14:03:32,515 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=28, нет_отката_от_хая=1
-2026-09-03 14:03:32,515 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 1/2
-2026-09-03 14:03:33,116 [WARNING] SPK_USDT: SL пропал с биржи! Пытаюсь восстановить...
-2026-09-03 14:03:35,389 [INFO] SPK_USDT: попытка восстановления SL (attempt 1/3, price=0.021821563710365244)
-2026-09-03 14:03:35,947 [ERROR] Binance API error 400 /fapi/v1/algoOrder: {"code":-4130,"msg":"An open stop or take profit order with GTE and closePosition in the direction is existing."}
-2026-09-03 14:03:35,947 [ERROR] SPK_USDT: не удалось установить SL на 0.021821563710365244
-2026-09-03 14:03:36,407 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:03:36,408 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:03:36,408 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:03:36,408 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:03:36,408 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:03:38,391 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:03:38,426 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:03:38,426 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:03:38,426 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:03:38,426 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:03:40,386 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:03:40,386 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:03:40,386 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:03:40,387 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:03:40,387 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:03:42,379 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:03:42,380 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:03:42,380 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:03:42,380 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:03:42,380 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:03:44,645 [WARNING] SPK_USDT: SL пропал с биржи! Пытаюсь восстановить...
-2026-09-03 14:03:44,645 [INFO] SPK_USDT: попытка восстановления SL (attempt 1/3, price=0.021821563710365244)
-2026-09-03 14:03:45,199 [ERROR] Binance API error 400 /fapi/v1/algoOrder: {"code":-4130,"msg":"An open stop or take profit order with GTE and closePosition in the direction is existing."}
-2026-09-03 14:03:45,199 [ERROR] SPK_USDT: не удалось установить SL на 0.021821563710365244
-2026-09-03 14:03:46,358 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:03:46,358 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:03:46,358 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:03:46,359 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:03:46,359 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:03:47,496 [INFO] === Cycle 35 ===
-2026-09-03 14:03:48,558 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:03:48,559 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:03:48,559 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:03:48,559 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:03:48,559 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:03:48,602 [INFO] Найдено 30 кандидатов
-2026-09-03 14:03:48,602 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:03:48,602 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:03:48,602 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:03:48,603 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:03:48,603 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:03:49,271 [INFO]   ✗ SPK_USDT [LONG] score=50 не открыта: already_open
-2026-09-03 14:03:49,272 [INFO] 📊 Инспектор цикл 35: кандидатов=30 | проходных=1 | открыто=0 | BTC=+0.24%
-2026-09-03 14:03:49,272 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=28, нет_отката_от_хая=1
-2026-09-03 14:03:49,272 [INFO]    отказ при попытке входа: already_open=1
-2026-09-03 14:03:49,273 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 1/2
-2026-09-03 14:03:50,549 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:03:51,772 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:03:52,098 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:03:52,099 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:03:52,099 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:03:52,549 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:03:52,549 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:03:52,549 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:03:52,549 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:03:52,550 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:03:54,808 [WARNING] SPK_USDT: SL пропал с биржи! Пытаюсь восстановить...
-2026-09-03 14:03:55,263 [INFO] SPK_USDT: попытка восстановления SL (attempt 1/3, price=0.021821563710365244)
-2026-09-03 14:03:55,820 [ERROR] Binance API error 400 /fapi/v1/algoOrder: {"code":-4130,"msg":"An open stop or take profit order with GTE and closePosition in the direction is existing."}
-2026-09-03 14:03:55,820 [ERROR] SPK_USDT: не удалось установить SL на 0.021821563710365244
-2026-09-03 14:03:56,532 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:03:56,532 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:03:56,532 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:03:56,532 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:03:56,533 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:03:58,522 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:03:58,522 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:03:58,523 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:03:58,523 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:03:58,523 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:00,523 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:00,523 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:00,524 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:00,524 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:00,524 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:02,517 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:02,518 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:02,519 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:02,519 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:02,519 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:04,273 [INFO] === Cycle 36 ===
-2026-09-03 14:04:05,357 [WARNING] SPK_USDT: SL пропал с биржи! Пытаюсь восстановить...
-2026-09-03 14:04:05,357 [INFO] SPK_USDT: попытка восстановления SL (attempt 1/3, price=0.021821563710365244)
-2026-09-03 14:04:05,386 [INFO] Найдено 30 кандидатов
-2026-09-03 14:04:05,909 [ERROR] Binance API error 400 /fapi/v1/algoOrder: {"code":-4130,"msg":"An open stop or take profit order with GTE and closePosition in the direction is existing."}
-2026-09-03 14:04:05,910 [ERROR] SPK_USDT: не удалось установить SL на 0.021821563710365244
-2026-09-03 14:04:05,910 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:05,910 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:05,910 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:05,910 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:05,910 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:06,486 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:07,996 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:07,997 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:07,997 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:07,997 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:08,066 [INFO]   ✗ SPK_USDT [LONG] score=50 не открыта: already_open
-2026-09-03 14:04:08,175 [INFO] 📊 Инспектор цикл 36: кандидатов=30 | проходных=1 | открыто=0 | BTC=+0.14%
-2026-09-03 14:04:08,175 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=28, нет_отката_от_хая=1
-2026-09-03 14:04:08,176 [INFO]    отказ при попытке входа: already_open=1
-2026-09-03 14:04:08,176 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 1/2
-2026-09-03 14:04:08,474 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:08,474 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:08,475 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:08,475 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:08,475 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:10,475 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:11,463 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:11,780 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:11,781 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:11,781 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:12,488 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:12,488 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:12,489 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:12,489 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:12,489 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:14,473 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:14,963 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:14,963 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:14,964 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:14,964 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:16,755 [WARNING] SPK_USDT: SL пропал с биржи! Пытаюсь восстановить...
-2026-09-03 14:04:16,755 [INFO] SPK_USDT: попытка восстановления SL (attempt 1/3, price=0.021821563710365244)
-2026-09-03 14:04:17,315 [ERROR] Binance API error 400 /fapi/v1/algoOrder: {"code":-4130,"msg":"An open stop or take profit order with GTE and closePosition in the direction is existing."}
-2026-09-03 14:04:17,316 [ERROR] SPK_USDT: не удалось установить SL на 0.021821563710365244
-2026-09-03 14:04:18,475 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:18,475 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:18,475 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:18,476 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:18,476 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:20,478 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:21,475 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:21,475 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:21,476 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:21,476 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:22,466 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:22,466 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:22,466 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:22,466 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:22,466 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:23,165 [INFO] === Cycle 37 ===
-2026-09-03 14:04:25,070 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:25,070 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:25,070 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:25,071 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:25,071 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:25,107 [INFO] Найдено 30 кандидатов
-2026-09-03 14:04:25,107 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:25,107 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:25,108 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:25,108 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:25,108 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:27,340 [WARNING] SPK_USDT: SL пропал с биржи! Пытаюсь восстановить...
-2026-09-03 14:04:27,689 [INFO] SPK_USDT: попытка восстановления SL (attempt 1/3, price=0.021821563710365244)
-2026-09-03 14:04:27,762 [INFO]   ✗ SPK_USDT [LONG] score=50 не открыта: already_open
-2026-09-03 14:04:27,868 [INFO] 📊 Инспектор цикл 37: кандидатов=30 | проходных=1 | открыто=0 | BTC=+0.14%
-2026-09-03 14:04:27,868 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=28, нет_отката_от_хая=1
-2026-09-03 14:04:27,868 [INFO]    отказ при попытке входа: already_open=1
-2026-09-03 14:04:27,869 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 1/2
-2026-09-03 14:04:28,241 [ERROR] Binance API error 400 /fapi/v1/algoOrder: {"code":-4130,"msg":"An open stop or take profit order with GTE and closePosition in the direction is existing."}
-2026-09-03 14:04:28,241 [ERROR] SPK_USDT: не удалось установить SL на 0.021821563710365244
-2026-09-03 14:04:29,048 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:29,048 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:29,049 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:29,049 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:29,049 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:31,031 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:31,305 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:31,305 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:31,305 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:31,305 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:33,032 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:33,032 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:33,032 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:33,032 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:33,033 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:35,018 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:35,019 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:35,019 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:35,019 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:35,019 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:37,007 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:37,697 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:37,697 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:37,697 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:37,698 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:39,277 [WARNING] SPK_USDT: SL пропал с биржи! Пытаюсь восстановить...
-2026-09-03 14:04:39,277 [INFO] SPK_USDT: попытка восстановления SL (attempt 1/3, price=0.021821563710365244)
-2026-09-03 14:04:39,832 [ERROR] Binance API error 400 /fapi/v1/algoOrder: {"code":-4130,"msg":"An open stop or take profit order with GTE and closePosition in the direction is existing."}
-2026-09-03 14:04:39,832 [ERROR] SPK_USDT: не удалось установить SL на 0.021821563710365244
-2026-09-03 14:04:40,995 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:41,342 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:41,343 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:41,343 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:41,343 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:42,867 [INFO] === Cycle 38 ===
-2026-09-03 14:04:42,976 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:42,976 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:42,976 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:42,976 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:42,976 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:43,410 [INFO] Найдено 30 кандидатов
-2026-09-03 14:04:44,663 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:44,664 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:44,664 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:44,664 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:44,664 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:44,991 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:44,991 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:44,991 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:44,991 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:44,992 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:45,345 [INFO]   ✗ SPK_USDT [LONG] score=50 не открыта: already_open
-2026-09-03 14:04:45,345 [INFO] 📊 Инспектор цикл 38: кандидатов=30 | проходных=1 | открыто=0 | BTC=+0.14%
-2026-09-03 14:04:45,345 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=27, нет_отката_от_хая=2
-2026-09-03 14:04:45,345 [INFO]    отказ при попытке входа: already_open=1
-2026-09-03 14:04:45,346 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 1/2
-2026-09-03 14:04:46,991 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:47,514 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:47,514 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:47,514 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:47,514 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:48,973 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:48,974 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:48,974 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:48,974 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:48,974 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:51,233 [WARNING] SPK_USDT: SL пропал с биржи! Пытаюсь восстановить...
-2026-09-03 14:04:51,234 [INFO] SPK_USDT: попытка восстановления SL (attempt 1/3, price=0.021821563710365244)
-2026-09-03 14:04:51,798 [ERROR] Binance API error 400 /fapi/v1/algoOrder: {"code":-4130,"msg":"An open stop or take profit order with GTE and closePosition in the direction is existing."}
-2026-09-03 14:04:51,798 [ERROR] SPK_USDT: не удалось установить SL на 0.021821563710365244
-2026-09-03 14:04:52,940 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:52,940 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:52,940 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:52,940 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:52,941 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:54,935 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:54,935 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:54,936 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:54,936 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:54,936 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:56,923 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:57,397 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:57,398 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:57,398 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:57,398 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:04:58,920 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:04:58,920 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:04:58,921 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:04:58,921 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:04:58,921 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:00,320 [INFO] === Cycle 39 ===
-2026-09-03 14:05:01,499 [INFO] Найдено 30 кандидатов
-2026-09-03 14:05:01,729 [WARNING] SPK_USDT: SL пропал с биржи! Пытаюсь восстановить...
-2026-09-03 14:05:01,729 [INFO] SPK_USDT: попытка восстановления SL (attempt 1/3, price=0.021821563710365244)
-2026-09-03 14:05:02,005 [ERROR] SPK_USDT: позиция не найдена, не могу поставить SL
-2026-09-03 14:05:02,005 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:02,006 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:02,006 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:02,006 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:02,006 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:02,122 [INFO]   ✗ SPK_USDT [LONG] score=50 не открыта: already_open
-2026-09-03 14:05:02,122 [INFO] 📊 Инспектор цикл 39: кандидатов=30 | проходных=1 | открыто=0 | BTC=+0.19%
-2026-09-03 14:05:02,123 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=27, нет_отката_от_хая=2
-2026-09-03 14:05:02,123 [INFO]    отказ при попытке входа: already_open=1
-2026-09-03 14:05:02,123 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 1/2
-2026-09-03 14:05:03,422 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:04,338 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:04,339 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:04,339 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:04,339 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:05,411 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:05,412 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:05,412 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:05,412 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:05,412 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:07,393 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:07,393 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:07,394 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:07,394 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:07,394 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:09,387 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:10,705 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:10,706 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:10,706 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:10,706 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:11,375 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:11,375 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:11,376 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:11,376 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:11,376 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:13,636 [WARNING] SPK_USDT: статус SL неизвестен (None), проверяем позицию...
-2026-09-03 14:05:14,172 [INFO] SPK_USDT: попытка восстановления SL (attempt 1/3, price=0.021821563710365244)
-2026-09-03 14:05:14,445 [ERROR] SPK_USDT: позиция не найдена, не могу поставить SL
-2026-09-03 14:05:15,358 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:15,358 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:15,358 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:15,359 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:15,359 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:17,132 [INFO] === Cycle 40 ===
-2026-09-03 14:05:17,347 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:17,348 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:17,348 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:17,348 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:17,348 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:17,431 [INFO] Найдено 30 кандидатов
-2026-09-03 14:05:17,431 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:17,431 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:17,431 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:17,431 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:17,431 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:19,334 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:20,697 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:21,015 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:21,015 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:21,015 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:21,344 [INFO] 📊 Инспектор цикл 40: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.19%
-2026-09-03 14:05:21,345 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=27, нет_отката_от_хая=3
-2026-09-03 14:05:21,345 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 1/2
-2026-09-03 14:05:21,482 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:21,482 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:21,482 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:21,483 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:21,483 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:23,764 [WARNING] SPK_USDT: статус SL неизвестен (None), проверяем позицию...
-2026-09-03 14:05:23,764 [INFO] SPK_USDT: попытка восстановления SL (attempt 1/3, price=0.021821563710365244)
-2026-09-03 14:05:24,040 [ERROR] SPK_USDT: позиция не найдена, не могу поставить SL
-2026-09-03 14:05:25,478 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:25,478 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:25,478 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:25,478 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:25,478 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:27,468 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:27,468 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:27,468 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:27,469 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:27,469 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:29,457 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:30,672 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:30,672 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:30,672 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:30,673 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:31,442 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:31,449 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:31,454 [INFO] Breakeven set SPK_USDT @ $0.022754
-2026-09-03 14:05:31,455 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:31,591 [INFO] [DB] save_open_position: SPK_USDT saved
-2026-09-03 14:05:31,592 [INFO] [TRACKER] SPK_USDT: SL изменён, позиция обновлена в БД
-2026-09-03 14:05:31,592 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:31,593 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:33,441 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:34,472 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:34,473 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:34,473 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:34,473 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:35,701 [WARNING] SPK_USDT: статус SL неизвестен (None), проверяем позицию...
-2026-09-03 14:05:35,701 [INFO] SPK_USDT: попытка восстановления SL (attempt 1/3, price=0.022754080000000003)
-2026-09-03 14:05:35,975 [ERROR] SPK_USDT: позиция не найдена, не могу поставить SL
-2026-09-03 14:05:37,345 [INFO] === Cycle 41 ===
-2026-09-03 14:05:37,802 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:37,803 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:37,803 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:37,804 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:37,804 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:37,827 [INFO] Найдено 30 кандидатов
-2026-09-03 14:05:37,828 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:37,830 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:37,830 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:37,830 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:37,831 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:38,497 [INFO] 📊 Инспектор цикл 41: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.19%
-2026-09-03 14:05:38,497 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=27, нет_отката_от_хая=3
-2026-09-03 14:05:38,498 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 1/2
-2026-09-03 14:05:39,805 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:39,805 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:39,805 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:39,806 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:39,806 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:41,804 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:41,805 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:41,805 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:41,806 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:41,806 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:43,804 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:44,547 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:44,548 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:44,548 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:44,548 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:46,075 [WARNING] SPK_USDT: статус SL неизвестен (None), проверяем позицию...
-2026-09-03 14:05:46,075 [INFO] SPK_USDT: попытка восстановления SL (attempt 1/3, price=0.022754080000000003)
-2026-09-03 14:05:46,355 [ERROR] SPK_USDT: позиция не найдена, не могу поставить SL
-2026-09-03 14:05:47,796 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:47,797 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:47,797 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:47,797 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:47,797 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:49,780 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:49,781 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:49,781 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:49,781 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:49,781 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:51,773 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:51,786 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:51,787 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:51,787 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:51,787 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:53,500 [INFO] === Cycle 42 ===
-2026-09-03 14:05:53,756 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:53,757 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:53,757 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:53,757 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:53,757 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:53,803 [INFO] Найдено 30 кандидатов
-2026-09-03 14:05:53,804 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:53,804 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:53,804 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:53,804 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:53,805 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:53,906 [INFO] 📊 Инспектор цикл 42: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.19%
-2026-09-03 14:05:53,907 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=27, нет_отката_от_хая=3
-2026-09-03 14:05:53,907 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 1/2
-2026-09-03 14:05:55,751 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:55,751 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:55,752 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:55,752 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:55,752 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:05:58,014 [WARNING] SPK_USDT: статус SL неизвестен (None), проверяем позицию...
-2026-09-03 14:05:58,014 [INFO] SPK_USDT: попытка восстановления SL (attempt 1/3, price=0.022754080000000003)
-2026-09-03 14:05:58,288 [ERROR] SPK_USDT: позиция не найдена, не могу поставить SL
-2026-09-03 14:05:59,748 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:05:59,748 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:05:59,749 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:05:59,749 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:05:59,749 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:06:01,737 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:06:02,800 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:06:02,801 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:06:02,801 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:06:02,801 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:06:03,725 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:06:03,725 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:06:03,725 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:06:03,725 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:06:03,725 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:06:05,710 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:06:06,114 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:06:06,115 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:06:06,115 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:06:06,115 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:06:07,694 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:06:09,142 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:06:09,143 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:06:09,143 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:06:09,143 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:06:09,148 [INFO] === Cycle 43 ===
-2026-09-03 14:06:09,604 [INFO] Найдено 30 кандидатов
-2026-09-03 14:06:09,882 [WARNING] SPK_USDT: статус SL неизвестен (None), проверяем позицию...
-2026-09-03 14:06:09,883 [INFO] SPK_USDT: попытка восстановления SL (attempt 1/3, price=0.022754080000000003)
-2026-09-03 14:06:10,154 [ERROR] SPK_USDT: позиция не найдена, не могу поставить SL
-2026-09-03 14:06:10,155 [ERROR] Ошибка в цикле: name 'asyncio' is not defined
-Traceback (most recent call last):
-  File "d:\!Project\WaveX_fixed_real\scanner.py", line 1087, in scan
-    await self.pos_manager.update_positions(self.prices)
-  File "d:\!Project\WaveX_fixed_real\risk_manager.py", line 307, in update_positions
-    events = await self.tracker.update_prices(prices)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "d:\!Project\WaveX_fixed_real\position_tracker.py", line 233, in update_prices
-    await self._emergency_restore_sl(symbol, pos)
-  File "d:\!Project\WaveX_fixed_real\position_tracker.py", line 370, in _emergency_restore_sl
-    await asyncio.sleep(0.5)
-          ^^^^^^^
-NameError: name 'asyncio' is not defined. Did you forget to import 'asyncio'
-2026-09-03 14:06:10,159 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:06:10,159 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:06:10,160 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:06:10,160 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:06:10,160 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:06:11,680 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:06:12,473 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:06:12,473 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:06:12,473 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:06:12,473 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:06:13,658 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:06:13,659 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:06:13,659 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:06:13,659 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:06:13,659 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:06:15,169 [INFO] === Cycle 44 ===
-2026-09-03 14:06:16,230 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:06:16,230 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:06:16,230 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:06:16,231 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:06:16,231 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:06:16,262 [INFO] Найдено 30 кандидатов
-2026-09-03 14:06:16,263 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:06:16,263 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:06:16,263 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:06:16,263 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:06:16,264 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:06:18,220 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:06:19,001 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:06:19,001 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:06:19,001 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:06:19,001 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:06:19,352 [INFO] 📊 Инспектор цикл 44: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.23%
-2026-09-03 14:06:19,353 [INFO]    пропущено: нет_импульса_вниз_и_не_обвал=30, нет_импульса_и_не_ракета=27, нет_отката_от_хая=3
-2026-09-03 14:06:19,354 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $26.42 | Открыто: 1/2
-2026-09-03 14:06:20,490 [WARNING] SPK_USDT: статус SL неизвестен (None), проверяем позицию...
-2026-09-03 14:06:20,490 [INFO] SPK_USDT: попытка восстановления SL (attempt 1/3, price=0.022754080000000003)
-2026-09-03 14:06:20,764 [ERROR] SPK_USDT: позиция не найдена, не могу поставить SL
-2026-09-03 14:06:22,193 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:06:22,193 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:06:22,193 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:06:22,193 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:06:22,193 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:06:24,169 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:06:24,170 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:06:24,170 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:06:24,170 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:06:24,170 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:06:26,158 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:06:26,158 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:06:26,158 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:06:26,158 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:06:26,158 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:06:28,150 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, пропускаем трейлинг
-2026-09-03 14:06:28,639 [INFO] [DEBUG-TRACKER] SPK_USDT: unprotected, трейлинг заблокирован
-2026-09-03 14:06:28,640 [INFO] [DEBUG-TRACKER] SPK_USDT: no event from _check_conditions
-2026-09-03 14:06:28,640 [INFO] [DEBUG-TRACKER] update_prices: total events=0
-2026-09-03 14:06:28,640 [INFO] [DEBUG-RISK] update_positions: received 0 events
-2026-09-03 14:06:30,130 [INFO] ExchangeFiltersCache: фоновое обновление остановлено
+2026-09-03 15:34:35,498 [INFO] ExchangeFiltersCache инициализирован: 843 символов, 1026 leverage brackets
+2026-09-03 15:34:35,500 [INFO] ExchangeFiltersCache: фоновое обновление запущено (интервал 10800с)
+2026-09-03 15:34:37,400 [INFO] Торговля включена
+2026-09-03 15:34:38,871 [INFO] [RECON] === Начало reconciliation ===
+2026-09-03 15:34:38,871 [INFO] [DB] load_all_open_positions: загружено 0 позиций
+2026-09-03 15:34:38,871 [INFO] [RECON] В БД найдено 0 открытых позиций
+2026-09-03 15:34:39,147 [INFO] [RECON] На бирже найдено 0 позиций
+2026-09-03 15:34:39,408 [INFO] [RECON] На бирже найдено 0 открытых ордеров
+2026-09-03 15:34:41,603 [INFO] [RECON] === Reconciliation завершён за 2.73с: расхождений нет ===
+2026-09-03 15:34:41,760 [INFO] [RISK] Reconciliation: success=True, в tracker теперь 0 позиций
+2026-09-03 15:34:42,892 [INFO] WS подключён (Binance Futures)
+2026-09-03 15:34:42,894 [INFO] === Cycle 1 ===
+2026-09-03 15:34:43,260 [INFO] Найдено 30 кандидатов
+2026-09-03 15:34:44,925 [INFO] [DEBUG-TRACKER] update_prices: total events=0
+2026-09-03 15:34:44,925 [INFO] [DEBUG-RISK] update_positions: received 0 events
+2026-09-03 15:34:47,844 [INFO] 📊 Инспектор цикл 1: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.78%
+2026-09-03 15:34:47,844 [INFO]    пропущено: нет_импульса_и_не_ракета=28, нет_импульса_вниз_и_не_обвал=27, глубина<$5000=5
+2026-09-03 15:34:47,845 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $25.94 | Открыто: 0/2
+2026-09-03 15:35:02,822 [INFO] === Cycle 2 ===
+2026-09-03 15:35:03,127 [INFO] Найдено 30 кандидатов
+2026-09-03 15:35:03,127 [INFO] [DEBUG-TRACKER] update_prices: total events=0
+2026-09-03 15:35:03,127 [INFO] [DEBUG-RISK] update_positions: received 0 events
+2026-09-03 15:35:03,738 [INFO] 📊 Инспектор цикл 2: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.78%
+2026-09-03 15:35:03,738 [INFO]    пропущено: нет_импульса_и_не_ракета=28, нет_импульса_вниз_и_не_обвал=27, глубина<$5000=5
+2026-09-03 15:35:03,738 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $25.94 | Открыто: 0/2
+2026-09-03 15:35:18,730 [INFO] === Cycle 3 ===
+2026-09-03 15:35:19,104 [INFO] Найдено 30 кандидатов
+2026-09-03 15:35:19,105 [INFO] [DEBUG-TRACKER] update_prices: total events=0
+2026-09-03 15:35:19,105 [INFO] [DEBUG-RISK] update_positions: received 0 events
+2026-09-03 15:35:20,040 [INFO] 📊 Инспектор цикл 3: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.78%
+2026-09-03 15:35:20,040 [INFO]    пропущено: нет_импульса_и_не_ракета=28, нет_импульса_вниз_и_не_обвал=27, глубина<$5000=5
+2026-09-03 15:35:20,040 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $25.94 | Открыто: 0/2
+2026-09-03 15:35:35,052 [INFO] === Cycle 4 ===
+2026-09-03 15:35:35,377 [INFO] Найдено 30 кандидатов
+2026-09-03 15:35:35,377 [INFO] [DEBUG-TRACKER] update_prices: total events=0
+2026-09-03 15:35:35,378 [INFO] [DEBUG-RISK] update_positions: received 0 events
+2026-09-03 15:35:37,917 [INFO] 📊 Инспектор цикл 4: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.78%
+2026-09-03 15:35:37,917 [INFO]    пропущено: нет_импульса_и_не_ракета=29, нет_импульса_вниз_и_не_обвал=27, глубина<$5000=4
+2026-09-03 15:35:37,917 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $25.94 | Открыто: 0/2
+2026-09-03 15:35:52,917 [INFO] === Cycle 5 ===
+2026-09-03 15:35:53,215 [INFO] Найдено 30 кандидатов
+2026-09-03 15:35:53,215 [INFO] [DEBUG-TRACKER] update_prices: total events=0
+2026-09-03 15:35:53,216 [INFO] [DEBUG-RISK] update_positions: received 0 events
+2026-09-03 15:35:53,880 [INFO] 📊 Инспектор цикл 5: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.67%
+2026-09-03 15:35:53,880 [INFO]    пропущено: нет_импульса_и_не_ракета=29, нет_импульса_вниз_и_не_обвал=27, глубина<$5000=4
+2026-09-03 15:35:53,880 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $25.94 | Открыто: 0/2
+2026-09-03 15:36:08,867 [INFO] === Cycle 6 ===
+2026-09-03 15:36:09,169 [INFO] Найдено 30 кандидатов
+2026-09-03 15:36:09,169 [INFO] [DEBUG-TRACKER] update_prices: total events=0
+2026-09-03 15:36:09,169 [INFO] [DEBUG-RISK] update_positions: received 0 events
+2026-09-03 15:36:10,491 [INFO] 📊 Инспектор цикл 6: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.67%
+2026-09-03 15:36:12,518 [INFO]    пропущено: нет_импульса_и_не_ракета=29, нет_импульса_вниз_и_не_обвал=27, глубина<$5000=4
+2026-09-03 15:36:12,518 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $25.94 | Открыто: 0/2
+2026-09-03 15:36:27,502 [INFO] === Cycle 7 ===
+2026-09-03 15:36:28,314 [INFO] Найдено 30 кандидатов
+2026-09-03 15:36:28,315 [INFO] [DEBUG-TRACKER] update_prices: total events=0
+2026-09-03 15:36:28,316 [INFO] [DEBUG-RISK] update_positions: received 0 events
+2026-09-03 15:36:31,125 [INFO] 📊 Инспектор цикл 7: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.67%
+2026-09-03 15:36:31,125 [INFO]    пропущено: нет_импульса_и_не_ракета=28, нет_импульса_вниз_и_не_обвал=27, глубина<$5000=4, нет_отката_от_хая=1
+2026-09-03 15:36:31,125 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $25.94 | Открыто: 0/2
+2026-09-03 15:36:46,127 [INFO] === Cycle 8 ===
+2026-09-03 15:36:46,426 [INFO] Найдено 30 кандидатов
+2026-09-03 15:36:47,584 [INFO] [DEBUG-TRACKER] update_prices: total events=0
+2026-09-03 15:36:47,584 [INFO] [DEBUG-RISK] update_positions: received 0 events
+2026-09-03 15:36:47,728 [INFO] 📊 Инспектор цикл 8: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.74%
+2026-09-03 15:36:47,729 [INFO]    пропущено: нет_импульса_и_не_ракета=28, нет_импульса_вниз_и_не_обвал=27, глубина<$5000=4, нет_отката_от_хая=1
+2026-09-03 15:36:47,729 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $25.94 | Открыто: 0/2
+2026-09-03 15:37:02,741 [INFO] === Cycle 9 ===
+2026-09-03 15:37:03,122 [INFO] Найдено 30 кандидатов
+2026-09-03 15:37:03,122 [INFO] [DEBUG-TRACKER] update_prices: total events=0
+2026-09-03 15:37:03,122 [INFO] [DEBUG-RISK] update_positions: received 0 events
+2026-09-03 15:37:04,043 [INFO] 📊 Инспектор цикл 9: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.74%
+2026-09-03 15:37:04,043 [INFO]    пропущено: нет_импульса_и_не_ракета=28, нет_импульса_вниз_и_не_обвал=27, глубина<$5000=4, нет_отката_от_хая=1
+2026-09-03 15:37:04,044 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $25.94 | Открыто: 0/2
+2026-09-03 15:37:19,039 [INFO] === Cycle 10 ===
+2026-09-03 15:37:24,184 [INFO] Найдено 30 кандидатов
+2026-09-03 15:37:24,184 [INFO] [DEBUG-TRACKER] update_prices: total events=0
+2026-09-03 15:37:24,185 [INFO] [DEBUG-RISK] update_positions: received 0 events
+2026-09-03 15:37:26,664 [INFO] 📊 Инспектор цикл 10: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.74%
+2026-09-03 15:37:26,984 [INFO]    пропущено: нет_импульса_и_не_ракета=28, нет_импульса_вниз_и_не_обвал=27, глубина<$5000=4, нет_отката_от_хая=1
+2026-09-03 15:37:26,984 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $25.94 | Открыто: 0/2
+2026-09-03 15:37:41,983 [INFO] === Cycle 11 ===
+2026-09-03 15:37:42,356 [INFO] Найдено 30 кандидатов
+2026-09-03 15:37:42,356 [INFO] [DEBUG-TRACKER] update_prices: total events=0
+2026-09-03 15:37:42,357 [INFO] [DEBUG-RISK] update_positions: received 0 events
+2026-09-03 15:37:42,996 [INFO] 📊 Инспектор цикл 11: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.74%
+2026-09-03 15:37:42,997 [INFO]    пропущено: нет_импульса_и_не_ракета=28, нет_импульса_вниз_и_не_обвал=27, глубина<$5000=4, нет_отката_от_хая=1
+2026-09-03 15:37:42,997 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $25.94 | Открыто: 0/2
+2026-09-03 15:37:58,008 [INFO] === Cycle 12 ===
+2026-09-03 15:37:58,291 [INFO] Найдено 30 кандидатов
+2026-09-03 15:37:58,471 [INFO] [DEBUG-TRACKER] update_prices: total events=0
+2026-09-03 15:37:58,471 [INFO] [DEBUG-RISK] update_positions: received 0 events
+2026-09-03 15:37:59,160 [INFO] 📊 Инспектор цикл 12: кандидатов=30 | проходных=0 | открыто=0 | BTC=+0.81%
+2026-09-03 15:37:59,160 [INFO]    пропущено: нет_импульса_и_не_ракета=28, нет_импульса_вниз_и_не_обвал=27, глубина<$5000=4, нет_отката_от_хая=1
+2026-09-03 15:37:59,161 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $25.94 | Открыто: 0/2
+2026-09-03 15:38:14,149 [INFO] === Cycle 13 ===
+2026-09-03 15:38:14,523 [INFO] Найдено 30 кандидатов
+2026-09-03 15:38:14,524 [INFO] [DEBUG-TRACKER] update_prices: total events=0
+2026-09-03 15:38:14,524 [INFO] [DEBUG-RISK] update_positions: received 0 events
+2026-09-03 15:38:17,771 [INFO] EDGE_USDT: размер 5.19 USDT < минимума, но ALLOW_MIN_POSITION_OVERRIDE=True — использую 11.00 USDT
+2026-09-03 15:38:18,035 [INFO] EDGEUSDT: плечо выставлено x1
+2026-09-03 15:38:19,533 [INFO] EDGE_USDT: SL установлен на 0.535008 (side=SELL, position=LONG, order_id=2000001406110995)
+2026-09-03 15:38:20,577 [INFO] EDGE_USDT: TP установлен на 0.5818212, qty=19.0 (side=SELL, position=LONG, order_id=2000001406111014)
+2026-09-03 15:38:20,577 [INFO] EDGE_USDT: полная стратегия, TP1_SIZE_FRAC=0.52
+2026-09-03 15:38:20,620 [INFO] [DB] save_open_position: EDGE_USDT saved
+2026-09-03 15:38:20,620 [INFO] [TRACKER] EDGE_USDT: позиция сохранена в БД
+2026-09-03 15:38:20,620 [INFO] TRACKER OPEN EDGE_USDT [LONG] @ $0.556800 qty=19.000000 size=$11.0 SL=$0.535008 (4.0%) TP1=$0.579592 (4.0%) TP2=$0.581821 (4.4%)
+2026-09-03 15:38:20,661 [INFO] 📊 Инспектор цикл 13: кандидатов=30 | проходных=1 | открыто=1 | BTC=+0.81%
+2026-09-03 15:38:20,662 [INFO]    пропущено: нет_импульса_и_не_ракета=27, нет_импульса_вниз_и_не_обвал=27, глубина<$5000=5
+2026-09-03 15:38:20,663 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $25.94 | Открыто: 1/2
+2026-09-03 15:38:22,823 [WARNING] EDGE_USDT: SL пропал с биржи! Пытаюсь восстановить...
+2026-09-03 15:38:23,918 [INFO] EDGE_USDT: попытка восстановления SL (attempt 1/3, price=0.535008)
+2026-09-03 15:38:24,443 [ERROR] Binance API error 400 /fapi/v1/algoOrder: {"code":-4130,"msg":"An open stop or take profit order with GTE and closePosition in the direction is existing."}
+2026-09-03 15:38:24,444 [ERROR] EDGE_USDT: не удалось установить SL на 0.535008
+2026-09-03 15:38:25,200 [INFO] EDGE_USDT: попытка восстановления SL (attempt 2/3, price=0.535008)
+2026-09-03 15:38:27,489 [ERROR] Binance API error 400 /fapi/v1/algoOrder: {"code":-4130,"msg":"An open stop or take profit order with GTE and closePosition in the direction is existing."}
+2026-09-03 15:38:27,490 [ERROR] EDGE_USDT: не удалось установить SL на 0.535008
+2026-09-03 15:38:28,249 [INFO] EDGE_USDT: попытка восстановления SL (attempt 3/3, price=0.535008)
+2026-09-03 15:38:28,777 [ERROR] Binance API error 400 /fapi/v1/algoOrder: {"code":-4130,"msg":"An open stop or take profit order with GTE and closePosition in the direction is existing."}
+2026-09-03 15:38:30,046 [ERROR] EDGE_USDT: не удалось установить SL на 0.535008
+2026-09-03 15:38:30,789 [ERROR] EDGE_USDT: не удалось восстановить SL после 3 попыток. Форс-закрытие.
+2026-09-03 15:38:31,756 [INFO] EDGE_USDT: форс-закрытие успешно (qty=19.000000)
+2026-09-03 15:38:33,710 [INFO] [DB] delete_open_position: EDGE_USDT deleted
+2026-09-03 15:38:33,711 [INFO] [DEBUG-TRACKER] update_prices: total events=0
+2026-09-03 15:38:33,711 [INFO] [DEBUG-RISK] update_positions: received 0 events
+2026-09-03 15:38:35,661 [INFO] === Cycle 14 ===
+2026-09-03 15:38:35,954 [INFO] Найдено 30 кандидатов
+2026-09-03 15:38:35,954 [INFO] [DEBUG-TRACKER] update_prices: total events=0
+2026-09-03 15:38:35,955 [INFO] [DEBUG-RISK] update_positions: received 0 events
+2026-09-03 15:38:36,408 [INFO] EDGE_USDT: размер 5.18 USDT < минимума, но ALLOW_MIN_POSITION_OVERRIDE=True — использую 11.00 USDT
+2026-09-03 15:38:37,908 [INFO] EDGE_USDT: SL установлен на 0.535008 (side=SELL, position=LONG, order_id=2000001406111510)
+2026-09-03 15:38:38,438 [INFO] EDGE_USDT: TP установлен на 0.5818212, qty=19.0 (side=SELL, position=LONG, order_id=2000001406111522)
+2026-09-03 15:38:38,438 [INFO] EDGE_USDT: полная стратегия, TP1_SIZE_FRAC=0.52
+2026-09-03 15:38:42,412 [INFO] [DB] save_open_position: EDGE_USDT saved
+2026-09-03 15:38:42,412 [INFO] [TRACKER] EDGE_USDT: позиция сохранена в БД
+2026-09-03 15:38:42,413 [INFO] TRACKER OPEN EDGE_USDT [LONG] @ $0.556100 qty=19.000000 size=$11.0 SL=$0.535008 (4.0%) TP1=$0.579592 (4.0%) TP2=$0.581821 (4.4%)
+2026-09-03 15:38:42,454 [INFO] 📊 Инспектор цикл 14: кандидатов=30 | проходных=1 | открыто=1 | BTC=+0.81%
+2026-09-03 15:38:42,455 [INFO]    пропущено: нет_импульса_и_не_ракета=27, нет_импульса_вниз_и_не_обвал=27, глубина<$5000=5
+2026-09-03 15:38:42,456 [INFO] Сделок: 0 | Win: 0 | Loss: 0 | BE: 0 | WR: 0% | PnL: $+0.00 | Капитал: $25.92 | Открыто: 1/2
+2026-09-03 15:38:43,244 [WARNING] EDGE_USDT: SL пропал с биржи! Пытаюсь восстановить...
+2026-09-03 15:38:43,503 [INFO] EDGE_USDT: попытка восстановления SL (attempt 1/3, price=0.535008)
+2026-09-03 15:38:44,024 [ERROR] Binance API error 400 /fapi/v1/algoOrder: {"code":-4130,"msg":"An open stop or take profit order with GTE and closePosition in the direction is existing."}
+2026-09-03 15:38:44,024 [ERROR] EDGE_USDT: не удалось установить SL на 0.535008
+2026-09-03 15:38:44,778 [INFO] EDGE_USDT: попытка восстановления SL (attempt 2/3, price=0.535008)
+2026-09-03 15:38:45,307 [ERROR] Binance API error 400 /fapi/v1/algoOrder: {"code":-4130,"msg":"An open stop or take profit order with GTE and closePosition in the direction is existing."}
+2026-09-03 15:38:45,307 [ERROR] EDGE_USDT: не удалось установить SL на 0.535008
+2026-09-03 15:38:46,042 [INFO] EDGE_USDT: попытка восстановления SL (attempt 3/3, price=0.535008)
+2026-09-03 15:38:46,568 [ERROR] Binance API error 400 /fapi/v1/algoOrder: {"code":-4130,"msg":"An open stop or take profit order with GTE and closePosition in the direction is existing."}
+2026-09-03 15:38:48,734 [ERROR] EDGE_USDT: не удалось установить SL на 0.535008
+2026-09-03 15:38:49,503 [ERROR] EDGE_USDT: не удалось восстановить SL после 3 попыток. Форс-закрытие.
+2026-09-03 15:38:50,463 [INFO] EDGE_USDT: форс-закрытие успешно (qty=19.000000)
+2026-09-03 15:38:52,686 [INFO] [DB] delete_open_position: EDGE_USDT deleted
+2026-09-03 15:38:52,687 [INFO] [DEBUG-TRACKER] update_prices: total events=0
+2026-09-03 15:38:52,687 [INFO] [DEBUG-RISK] update_positions: received 0 events
+2026-09-03 15:38:53,167 [INFO] ExchangeFiltersCache: фоновое обновление остановлено

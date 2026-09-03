@@ -450,6 +450,29 @@ class PositionTracker:
                     log.error(f"{symbol}: форс-закрытие не удалось!")
             except Exception as e:
                 log.error(f"{symbol}: ошибка форс-закрытия: {e}")
+
+        # [ИСПРАВЛЕНО] Отменяем защитные ордера после форс-закрытия
+        sl_id = pos.get("sl_order_id")
+        tp_id = pos.get("tp_order_id")
+        sl_cid = pos.get("sl_client_id")
+        tp_cid = pos.get("tp_client_id")
+
+        if sl_id or tp_id:
+            try:
+                cancel_result = await self.exchange.cancel_sl_tp(
+                    symbol,
+                    sl_order_id=sl_id,
+                    tp_order_id=tp_id,
+                    sl_client_id=sl_cid,
+                    tp_client_id=tp_cid,
+                )
+                log.info(
+                    f"{symbol}: защитные ордера отменены после форс-закрытия "
+                    f"(SL={'✓' if cancel_result.get('sl') else '✗'}, "
+                    f"TP={'✓' if cancel_result.get('tp') else '✗'})"
+                )
+            except Exception as e:
+                log.error(f"{symbol}: ошибка отмены ордеров после форс-закрытия: {e}")
         
         # Удаляем из in-memory и БД
         self.positions.pop(symbol, None)
