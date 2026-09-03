@@ -256,6 +256,34 @@ class Reconciliator:
                 f"Просто удаляем из БД."
             )
 
+        # [ИСПРАВЛЕНО] Отменяем конкретные ордера из БД по их ID.
+        # Это проще и эффективнее, чем запрашивать список всех algo-ордеров.
+        # Если ордера уже нет (исполнился или был отменён) — это не ошибка.
+        sl_id = db_pos.get("sl_order_id")
+        sl_cid = db_pos.get("sl_client_id")
+        tp_id = db_pos.get("tp_order_id")
+        tp_cid = db_pos.get("tp_client_id")
+
+        if sl_id or tp_id:
+            try:
+                cancel_result = await self.exchange.cancel_sl_tp(
+                    symbol,
+                    sl_order_id=sl_id,
+                    tp_order_id=tp_id,
+                    sl_client_id=sl_cid,
+                    tp_client_id=tp_cid,
+                )
+                log.info(
+                    f"[RECON] {symbol}: защитные ордера отменены "
+                    f"(SL={'✓' if cancel_result.get('sl') else '✗'}, "
+                    f"TP={'✓' if cancel_result.get('tp') else '✗'})"
+                )
+            except Exception as e:
+                log.error(f"[RECON] {symbol}: ошибка отмены ордеров: {e}")
+                # Не критично — просто логируем
+        else:
+            log.debug(f"[RECON] {symbol}: в БД нет ID ордеров, пропускаю отмену")
+
         # Удаляем позицию из БД
         self.db.delete_open_position(symbol)
         result.closed_missing.append(symbol)
