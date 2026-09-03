@@ -227,12 +227,12 @@ class PositionTracker:
             if not price or price <= 0:
                 continue
 
-            # [НОВОЕ] Проверяем здоровье SL раз в 30 секунд
-            sl_ok = await self._check_sl_health(symbol, pos)
-            if not sl_ok:
-                # Аварийная ветка — попытка восстановления или форс-закрытие
-                await self._emergency_restore_sl(symbol, pos)
-                continue  # Пропускаем эту позицию в этом цикле
+            # [ИСПРАВЛЕНО] Проверяем здоровье SL раз в 30 секунд
+            close_event = await self._check_sl_health(symbol, pos)
+            if close_event:
+                # Позиция закрыта на бирже — добавляем событие
+                events.append(close_event)
+                continue
 
             # [НОВОЕ] Если позиция unprotected — блокируем трейлинг
             if pos.get("unprotected", False):
@@ -285,11 +285,12 @@ class PositionTracker:
         debug_log(f"[DEBUG-TRACKER] update_prices: total events={len(events)}")
         return events
     
-    async def _check_sl_health(self, symbol: str, pos: dict) -> bool:
+    async def _check_sl_health(self, symbol: str, pos: dict) -> Optional[dict]:
         """
-        [НОВОЕ]
         Проверяет статус SL-ордера на бирже.
-        Возвращает True, если всё ок, False если нужна аварийная ветка.
+        Возвращает:
+        - None — всё ок, продолжаем
+        - dict — событие закрытия (позиция закрыта на бирже)
         Вызывается раз в 30 секунд для каждой позиции.
         """
         now = time.time()
@@ -297,7 +298,7 @@ class PositionTracker:
         
         # Проверяем не чаще чем раз в 30 секунд
         if now - last_check < 30:
-            return True
+            return None
         
         pos["last_sl_check_ts"] = now
         
@@ -305,56 +306,39 @@ class PositionTracker:
         sl_cid = pos.get("sl_client_id")
         
         if not sl_id and not sl_cid:
-            # SL вообще не был поставлен — аварийная ветка
             log.warning(f"{symbol}: SL отсутствует в позиции! Аварийная ветка.")
-            return False
+            pos["unprotected"] = True
+            return None
         
-        # [ИСПРАВЛЕНО] Сначала проверяем, есть ли позиция на бирже
-        pos_info = await self.exchange.get_position_info(symbol)
-        if not pos_info or abs(pos_info.get("position_amt", 0)) <= 0:
-            # Позиции на бирже нет — значит она была закрыта вручную
-            log.info(f"{symbol}: позиция закрыта на бирже (вручную или по SL). Удаляю из tracker.")
-            # Удаляем из in-memory
-            self.positions.pop(symbol, None)
-            # Удаляем из БД
-            if self.db:
-                try:
-                    self.db.delete_open_position(symbol)
-                except Exception as e:
-                    log.error(f"{symbol}: ошибка удаления из БД: {e}")
-            # Возвращаем False, чтобы вызвать обработку в update_prices
-            # Но позиция уже удалена, поэтому дальнейшая обработка не нужна
-            return True  # Возвращаем True, чтобы не вызывать аварийную ветку
-        
-        # Проверяем статус SL на бирже
+        # Проверяем статус на бирже
         status = await self.exchange.get_sl_status(symbol)
         
         if status == "active":
-            return True  # Всё ок
+            return None  # Всё ок
         
         if status == "triggered":
-            # SL сработал, но позиция ещё в tracker — нормально,
-            # событие закрытия скоро обработается
-            return True
+            # SL сработал, ждём событие закрытия
+            return None
+        
+        if status == "error":
+            # Ошибка API — не делаем ничего, пропускаем проверку
+            log.warning(f"{symbol}: ошибка проверки статуса SL, пропускаем")
+            return None
+        
+        if status is None:
+            # [ИСПРАВЛЕНО] Позиции реально нет на бирже
+            # Вызываем _close_position() для корректной обработки
+            log.info(f"{symbol}: позиция закрыта на бирже. Обрабатываю закрытие...")
+            return await self._close_position(symbol, pos.get("last_watch_price", 0.0), "EXTERNAL_CLOSE")
         
         if status == "missing":
             log.warning(f"{symbol}: SL пропал с биржи! Пытаюсь восстановить...")
-            return False
+            pos["unprotected"] = True
+            return None
         
-        if status is None:
-            # Позиции нет на бирже
-            log.info(f"{symbol}: позиция закрыта на бирже. Удаляю из tracker.")
-            self.positions.pop(symbol, None)
-            if self.db:
-                try:
-                    self.db.delete_open_position(symbol)
-                except Exception as e:
-                    log.error(f"{symbol}: ошибка удаления из БД: {e}")
-            return True
-        
-        # unknown — считаем подозрительным
-        log.warning(f"{symbol}: статус SL неизвестен ({status}), проверяем позицию...")
-        return False
+        # unknown
+        log.warning(f"{symbol}: статус SL неизвестен ({status})")
+        return None
 
     async def _emergency_restore_sl(self, symbol: str, pos: dict):
         """

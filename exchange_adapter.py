@@ -426,6 +426,21 @@ class RealExchange(ExchangeAdapter):
             order["tp_order_id"] = tp_order.get("order_id")
             order["tp_client_id"] = tp_order.get("client_order_id")
 
+            # [ИСПРАВЛЕНО] Сохраняем ID в локальный кэш algo-ордеров
+            # Это нужно для runtime-проверки статуса SL в _check_sl_health()
+            if symbol not in self._algo_orders:
+                self._algo_orders[symbol] = {}
+            if sl_order:
+                self._algo_orders[symbol]["sl"] = {
+                    "order_id": sl_order.get("order_id"),
+                    "client_order_id": sl_order.get("client_order_id"),
+                }
+            if tp_order:
+                self._algo_orders[symbol]["tp"] = {
+                    "order_id": tp_order.get("order_id"),
+                    "client_order_id": tp_order.get("client_order_id"),
+                }
+
         return order
 
     async def place_market_sell(
@@ -477,6 +492,20 @@ class RealExchange(ExchangeAdapter):
             order["sl_client_id"] = sl_order.get("client_order_id")
             order["tp_order_id"] = tp_order.get("order_id")
             order["tp_client_id"] = tp_order.get("client_order_id")
+
+            # [ИСПРАВЛЕНО] Сохраняем ID в локальный кэш algo-ордеров
+            if symbol not in self._algo_orders:
+                self._algo_orders[symbol] = {}
+            if sl_order:
+                self._algo_orders[symbol]["sl"] = {
+                    "order_id": sl_order.get("order_id"),
+                    "client_order_id": sl_order.get("client_order_id"),
+                }
+            if tp_order:
+                self._algo_orders[symbol]["tp"] = {
+                    "order_id": tp_order.get("order_id"),
+                    "client_order_id": tp_order.get("client_order_id"),
+                }
 
         return order
     
@@ -589,46 +618,45 @@ class RealExchange(ExchangeAdapter):
     
     async def get_sl_status(self, symbol: str) -> Optional[str]:
         """
-        Проверяет статус SL на бирже.
-        Использует локальный кэш algo-ордеров + get_algo_order_status.
+        [УПРОЩЕНО]
+        Проверяет статус SL по ID из кэша.
+        Возвращает: "active" | "missing" | "unknown" | None
+        - "active" — ордер существует (NEW или TRIGGERED)
+        - "missing" — ордера нет на бирже
+        - "unknown" — ошибка API (не удаляем позицию)
+        - None — позиции нет на бирже
         """
+        # 1. Проверяем, есть ли позиция на бирже
+        pos_info = await self.pm.get_position_info(symbol)
+        if not pos_info:
+            return None  # Позиции нет
+        
+        # 2. Берём ID из локального кэша
+        cached = self._algo_orders.get(symbol, {})
+        sl_info = cached.get("sl")
+        if not sl_info:
+            return "missing"  # ID нет в кэше
+        
+        # 3. Просто проверяем: есть ордер или нет
         try:
-            # Запрашиваем реальный список algo-ордеров с биржи
-            algo_orders = await self.api.get_open_algo_orders(symbol)
+            status_resp = await self.api.get_algo_order_status(
+                symbol,
+                algo_id=sl_info["order_id"],
+                client_algo_id=sl_info["client_order_id"],
+            )
             
-            if not algo_orders:
+            if status_resp:
+                status = status_resp.get("status")
+                # NEW или TRIGGERED — ордер существует
+                if status in ("NEW", "TRIGGERED"):
+                    return "active"
+                else:
+                    return "missing"
+            else:
                 return "missing"
-            
-            # Ищем SL-ордер (STOP_MARKET или STOP с closePosition)
-            for o in algo_orders:
-                order_type = o.get("type", "").upper()
-                close_pos = o.get("close_position", False)
-                side = o.get("side", "").upper()
-                
-                # SL для LONG = SELL STOP_MARKET с closePosition
-                # SL для SHORT = BUY STOP_MARKET с closePosition
-                if order_type in ("STOP_MARKET", "STOP") and close_pos:
-                    status = o.get("status", "").upper()
-                    if status in ("NEW", "ACTIVE"):
-                        # Обновляем кэш
-                        if not hasattr(self, '_algo_orders'):
-                            self._algo_orders = {}
-                        if symbol not in self._algo_orders:
-                            self._algo_orders[symbol] = {}
-                        self._algo_orders[symbol]["sl"] = {
-                            "order_id": o.get("algo_id"),
-                            "client_order_id": o.get("client_algo_id"),
-                        }
-                        return "active"
-                    elif status in ("FILLED", "TRIGGERED"):
-                        return "triggered"
-            
-            # Algo-ордера есть, но SL среди них нет
-            return "missing"
-            
         except Exception as e:
-            log.error(f"{symbol}: ошибка проверки статуса SL: {e}")
-            return None
+            log.error(f"{symbol}: ошибка проверки SL: {e}")
+            return "unknown"
     
     async def get_balance(self, asset: str = "USDT") -> float:
         """Получает баланс через api.py."""
