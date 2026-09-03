@@ -225,7 +225,18 @@ class PositionTracker:
             price = prices.get(symbol)
             if not price or price <= 0:
                 continue
-            
+
+            # [НОВОЕ] Проверяем здоровье SL раз в 30 секунд
+            sl_ok = await self._check_sl_health(symbol, pos)
+            if not sl_ok:
+                # Аварийная ветка — попытка восстановления или форс-закрытие
+                await self._emergency_restore_sl(symbol, pos)
+                continue  # Пропускаем эту позицию в этом цикле
+
+            # [НОВОЕ] Если позиция unprotected — блокируем трейлинг
+            if pos.get("unprotected", False):
+                debug_log(f"[DEBUG-TRACKER] {symbol}: unprotected, пропускаем трейлинг")
+
             # Обновляем MFE/MAE
             side = pos.get("side", "LONG")
             is_short = side == "SHORT"
@@ -273,6 +284,126 @@ class PositionTracker:
         debug_log(f"[DEBUG-TRACKER] update_prices: total events={len(events)}")
         return events
     
+    async def _check_sl_health(self, symbol: str, pos: dict) -> bool:
+        """
+        [НОВОЕ]
+        Проверяет статус SL-ордера на бирже.
+        Возвращает True, если всё ок, False если нужна аварийная ветка.
+        Вызывается раз в 30-60 секунд для каждой позиции.
+        """
+        now = time.time()
+        last_check = pos.get("last_sl_check_ts", 0.0)
+        
+        # Проверяем не чаще чем раз в 30 секунд
+        if now - last_check < 30:
+            return True
+        
+        pos["last_sl_check_ts"] = now
+        
+        sl_id = pos.get("sl_order_id")
+        sl_cid = pos.get("sl_client_id")
+        
+        if not sl_id and not sl_cid:
+            # SL вообще не был поставлен — аварийная ветка
+            log.warning(f"{symbol}: SL отсутствует в позиции! Аварийная ветка.")
+            return False
+        
+        # Проверяем статус на бирже
+        status = await self.exchange.get_sl_status(symbol)
+        
+        if status == "active":
+            return True  # Всё ок
+        
+        if status == "triggered":
+            # SL сработал, но позиция ещё в tracker — нормально,
+            # событие закрытия скоро обработается
+            return True
+        
+        if status == "missing":
+            log.warning(f"{symbol}: SL пропал с биржи! Пытаюсь восстановить...")
+            return False
+        
+        # unknown или None — считаем подозрительным
+        log.warning(f"{symbol}: статус SL неизвестен ({status}), проверяем позицию...")
+        return False
+
+    async def _emergency_restore_sl(self, symbol: str, pos: dict):
+        """
+        [НОВОЕ]
+        Аварийное восстановление SL.
+        2-3 попытки, если не удалось — форс-закрытие.
+        """
+        # Помечаем позицию как unprotected (блокирует трейлинг)
+        pos["unprotected"] = True
+        
+        sl_price = pos.get("sl_price", 0.0)
+        if sl_price <= 0:
+            log.error(f"{symbol}: sl_price=0, форс-закрытие")
+            await self._force_close_position(symbol, pos)
+            return
+        
+        for attempt in range(3):
+            try:
+                log.info(
+                    f"{symbol}: попытка восстановления SL "
+                    f"(attempt {attempt + 1}/3, price={sl_price})"
+                )
+                sl_order = await self.exchange.place_sl(symbol, sl_price)
+                if sl_order:
+                    pos["sl_order_id"] = sl_order.get("order_id")
+                    pos["sl_client_id"] = sl_order.get("client_order_id")
+                    pos["unprotected"] = False
+                    log.info(
+                        f"{symbol}: SL восстановлен "
+                        f"(id={sl_order.get('order_id')})"
+                    )
+                    # Сохраняем в БД
+                    if self.db:
+                        try:
+                            self.db.save_open_position(pos)
+                        except Exception as e:
+                            log.error(f"{symbol}: ошибка сохранения после восстановления SL: {e}")
+                    return
+            except Exception as e:
+                log.error(f"{symbol}: ошибка восстановления SL: {e}")
+            
+            await asyncio.sleep(0.5)
+        
+        # Все попытки провалились → форс-закрытие
+        log.error(f"{symbol}: не удалось восстановить SL после 3 попыток. Форс-закрытие.")
+        await self._force_close_position(symbol, pos)
+
+    async def _force_close_position(self, symbol: str, pos: dict):
+        """
+        [НОВОЕ]
+        Форс-закрытие позиции без SL.
+        Используется, когда SL не удалось восстановить.
+        """
+        final_qty = pos.get("remaining_qty", 0.0)
+        if final_qty <= 0:
+            log.warning(f"{symbol}: qty=0, просто удаляем")
+        else:
+            try:
+                close_order = await self.exchange.close_position(symbol, final_qty, 0.0)
+                if close_order and close_order.get("filled_amount", 0) > 0:
+                    log.info(
+                        f"{symbol}: форс-закрытие успешно "
+                        f"(qty={close_order.get('filled_amount', 0):.6f})"
+                    )
+                else:
+                    log.error(f"{symbol}: форс-закрытие не удалось!")
+            except Exception as e:
+                log.error(f"{symbol}: ошибка форс-закрытия: {e}")
+        
+        # Удаляем из in-memory и БД
+        self.positions.pop(symbol, None)
+        if self.db:
+            try:
+                self.db.delete_open_position(symbol)
+            except Exception as e:
+                log.error(f"{symbol}: ошибка удаления из БД после форс-закрытия: {e}")
+
+
     async def _check_conditions(
         self,
         symbol: str,
@@ -303,6 +434,12 @@ class PositionTracker:
         # 2. ТРЕЙЛИНГ
         # ================================================================
         profit_pct = self._calc_profit_pct(pos, price)
+
+        # [НОВОЕ] Если позиция unprotected — блокируем трейлинг
+        if pos.get("unprotected", False):
+            debug_log(f"[DEBUG-TRACKER] {symbol}: unprotected, трейлинг заблокирован")
+        elif profit_pct >= Config.TRAILING_ACTIVATION_PCT:
+            new_sl = self._calc_trailing_sl(profit_pct, side, price)
         
         if profit_pct >= Config.TRAILING_ACTIVATION_PCT:
             new_sl = self._calc_trailing_sl(profit_pct, side, price)

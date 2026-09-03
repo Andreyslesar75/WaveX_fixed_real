@@ -306,6 +306,32 @@ class Reconciliator:
         # Обновляем БД актуальными данными с биржи
         self.db.save_open_position(restored_pos)
 
+        # [НОВОЕ] Восстанавливаем кэш algo-ордеров в RealExchange
+        # Это нужно, чтобы runtime-проверка SL работала корректно
+        if hasattr(self.exchange, '_algo_orders'):
+            sl_id = restored_pos.get("sl_order_id")
+            sl_cid = restored_pos.get("sl_client_id")
+            tp_id = restored_pos.get("tp_order_id")
+            tp_cid = restored_pos.get("tp_client_id")
+            
+            if sl_id or tp_id:
+                self.exchange._algo_orders[symbol] = {}
+                if sl_id:
+                    self.exchange._algo_orders[symbol]["sl"] = {
+                        "order_id": sl_id,
+                        "client_order_id": sl_cid,
+                    }
+                if tp_id:
+                    self.exchange._algo_orders[symbol]["tp"] = {
+                        "order_id": tp_id,
+                        "client_order_id": tp_cid,
+                    }
+                log.info(
+                    f"[RECON] {symbol}: кэш algo-ордеров восстановлен "
+                    f"(SL_id={sl_id}, TP_id={tp_id})"
+                )
+
+
         result.restored.append(symbol)
 
         # Проверяем наличие SL/TP
