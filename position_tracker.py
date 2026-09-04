@@ -104,13 +104,24 @@ class PositionTracker:
         if actual_price <= 0:
             actual_price = entry_price
 
-        # [НОВОЕ] Получаем minNotional для символа
+        # # [НОВОЕ] Получаем minNotional для символа
         min_notional = await self.exchange.get_min_notional(symbol)
         margin = Config.MIN_NOTIONAL_SAFETY_MARGIN
-        
-        # [НОВОЕ] Определяем стратегию
-        # Полная стратегия возможна, если после TP1 остаток >= minNotional * margin
-        full_strategy = size_usdt >= 2 * min_notional * margin
+
+        # [ИСПРАВЛЕНО] Устойчивая проверка полной стратегии
+        # Обе части (TP1 и остаток на TP2) должны быть >= minNotional * margin
+        # Поэтому проверяем МЕНЬШУЮ из двух частей
+        tp1_frac = Config.TP1_SIZE_FRAC
+        tp2_frac = 1.0 - tp1_frac
+        smaller_frac = min(tp1_frac, tp2_frac)  # меньшая из двух частей
+
+        # Меньшая часть позиции в USDT
+        smaller_part = size_usdt * smaller_frac
+        # Минимально допустимый размер с запасом
+        min_required = min_notional * margin
+
+        full_strategy = smaller_part >= min_required
+
         
         if full_strategy:
             # Динамически пересчитываем TP1_SIZE_FRAC
@@ -853,6 +864,29 @@ class PositionTracker:
                     f"filled={actual_qty:.6f}, remaining={pos['remaining_qty']:.6f}"
                 )
                 return None
+
+            # [ИСПРАВЛЕНО] Отменяем защитные ордера после закрытия позиции
+            sl_id = pos.get("sl_order_id")
+            tp_id = pos.get("tp_order_id")
+            sl_cid = pos.get("sl_client_id")
+            tp_cid = pos.get("tp_client_id")
+
+            if sl_id or tp_id:
+                try:
+                    cancel_result = await self.exchange.cancel_sl_tp(
+                        symbol,
+                        sl_order_id=sl_id,
+                        tp_order_id=tp_id,
+                        sl_client_id=sl_cid,
+                        tp_client_id=tp_cid,
+                    )
+                    log.info(
+                        f"{symbol}: защитные ордера отменены после закрытия "
+                        f"(SL={'✓' if cancel_result.get('sl') else '✗'}, "
+                        f"TP={'✓' if cancel_result.get('tp') else '✗'})"
+                    )
+                except Exception as e:
+                    log.error(f"{symbol}: ошибка отмены ордеров: {e}")
             
             # Позиция полностью закрыта
             self.positions.pop(symbol, None)
