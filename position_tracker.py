@@ -300,9 +300,8 @@ class PositionTracker:
         """
         Проверяет статус SL-ордера на бирже.
         Возвращает:
-        - None — всё ок, продолжаем
+        - None — всё ок или ошибка API
         - dict — событие закрытия (позиция закрыта на бирже)
-        Вызывается раз в 30 секунд для каждой позиции.
         """
         now = time.time()
         last_check = pos.get("last_sl_check_ts", 0.0)
@@ -318,7 +317,7 @@ class PositionTracker:
         
         if not sl_id and not sl_cid:
             log.warning(f"{symbol}: SL отсутствует в позиции! Аварийная ветка.")
-            pos["unprotected"] = True
+            await self._emergency_restore_sl(symbol, pos)
             return None
         
         # Проверяем статус на бирже
@@ -332,19 +331,19 @@ class PositionTracker:
             return None
         
         if status == "error":
-            # Ошибка API — не делаем ничего, пропускаем проверку
+            # Ошибка API — не делаем ничего
             log.warning(f"{symbol}: ошибка проверки статуса SL, пропускаем")
             return None
         
         if status is None:
-            # [ИСПРАВЛЕНО] Позиции реально нет на бирже
-            # Вызываем _close_position() для корректной обработки
+            # Позиции реально нет на бирже
             log.info(f"{symbol}: позиция закрыта на бирже. Обрабатываю закрытие...")
             return await self._close_position(symbol, pos.get("last_watch_price", 0.0), "EXTERNAL_CLOSE")
         
         if status == "missing":
+            # [ИСПРАВЛЕНО] Вызываем аварийную ветку
             log.warning(f"{symbol}: SL пропал с биржи! Пытаюсь восстановить...")
-            pos["unprotected"] = True
+            await self._emergency_restore_sl(symbol, pos)
             return None
         
         # unknown
@@ -762,28 +761,6 @@ class PositionTracker:
                 # Удаляем позицию локально
                 self.positions.pop(symbol, None)
 
-                # [ИСПРАВЛЕНО] Отменяем защитные ордера на бирже
-                sl_id = pos.get("sl_order_id")
-                tp_id = pos.get("tp_order_id")
-                sl_cid = pos.get("sl_client_id")
-                tp_cid = pos.get("tp_client_id")
-
-                if sl_id or tp_id:
-                    try:
-                        cancel_result = await self.exchange.cancel_sl_tp(
-                            symbol,
-                            sl_order_id=sl_id,
-                            tp_order_id=tp_id,
-                            sl_client_id=sl_cid,
-                            tp_client_id=tp_cid,
-                        )
-                        log.info(
-                            f"{symbol}: защитные ордера отменены после закрытия "
-                            f"(SL={'✓' if cancel_result.get('sl') else '✗'}, "
-                            f"TP={'✓' if cancel_result.get('tp') else '✗'})"
-                        )
-                    except Exception as e:
-                        log.error(f"{symbol}: ошибка отмены защитных ордеров: {e}")
 
 
                 # [НОВОЕ] Удаляем позицию из БД
@@ -1120,6 +1097,7 @@ class PositionTracker:
         """
         Загружает открытые позиции из БД в self.positions.
         Используется при рестарте бота для восстановления состояния.
+        [ИСПРАВЛЕНО] Восстанавливает недостающие runtime-поля.
         """
         if not self.db:
             log.warning("[TRACKER] load_positions_from_db: db=None, пропускаю")
@@ -1135,6 +1113,24 @@ class PositionTracker:
                 symbol = pos.get("symbol")
                 if not symbol:
                     continue
+
+                # [ИСПРАВЛЕНО] Восстанавливаем runtime-поля, которых нет в БД
+                if not pos.get("highest"):
+                    pos["highest"] = pos.get("entry_price", 0.0)
+                if pos.get("mfe") is None:
+                    pos["mfe"] = 0.0
+                if pos.get("mae") is None:
+                    pos["mae"] = 0.0
+                if not pos.get("last_watch_price"):
+                    pos["last_watch_price"] = pos.get("entry_price", 0.0)
+                pos["closing"] = False
+                pos.setdefault("trail_active", False)
+                pos.setdefault("breakeven_set", False)
+                pos.setdefault("tp1_done", False)
+                pos.setdefault("tp2_done", False)
+                pos.setdefault("tp1_closed_qty", 0.0)
+                pos.setdefault("realized_pnl", 0.0)
+                pos.setdefault("closed_qty", 0.0)
 
                 # Восстанавливаем позицию в self.positions
                 self.positions[symbol] = pos

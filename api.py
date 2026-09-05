@@ -1851,6 +1851,41 @@ class BinanceFuturesRestClient:
             )
         return result
 
+    async def get_open_algo_orders(self, symbol: Optional[str] = None) -> List[dict]:
+        """
+        [НОВОЕ]
+        Возвращает список открытых алгоритмических (условных) ордеров.
+        Это SL/TP, созданные через /fapi/v1/algoOrder.
+        Если symbol=None — по всем символам.
+        """
+        params = {}
+        if symbol:
+            params["symbol"] = to_binance_symbol(symbol)
+        resp = await self._request(
+            "GET",
+            "/fapi/v1/openAlgoOrders",
+            params=params,
+            signed=True,
+        )
+        if not resp or not isinstance(resp, list):
+            return []
+        result = []
+        for o in resp:
+            result.append(
+                {
+                    "symbol": to_internal_symbol(o.get("symbol", "")),
+                    "algo_id": _safe_float(o.get("algoId")),
+                    "client_algo_id": o.get("clientAlgoId"),
+                    "type": o.get("orderType"),
+                    "side": o.get("side"),
+                    "status": o.get("status"),
+                    "trigger_price": _safe_float(o.get("triggerPrice")),
+                    "quantity": _safe_float(o.get("origQty")),
+                    "close_position": o.get("closePosition", False),
+                }
+            )
+        return result
+
     async def cancel_all_orders(self, symbol: str) -> bool:
         """
         Отменяет все открытые ордера по символу.

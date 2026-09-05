@@ -180,33 +180,34 @@ class WaveXScanner:
         # [НОВОЕ] Запуск фонового обновления кэша
         self.rest_client.filters_cache.start_background_updater()
         
+        # [ИСПРАВЛЕНО] Создаём PositionManager ОДИН раз
         self.pos_manager = PositionManager(self.rest_client, Config.REAL_TRADING)
-        if Config.REAL_TRADING:
-            await self.pos_manager.refresh_balance()
-
-            # [НОВОЕ] Reconciliation при старте
-            recon_ok = await self.pos_manager.reconcile()
-            if not recon_ok:
-                log.error("Reconciliation провалился — бот не может безопасно торговать")
-                # Не падаем, но флаг торговля отключён
-                self.trading_enabled[0] = False
-
-
-        self.pos_manager = PositionManager(
-            self.rest_client,
-            Config.REAL_TRADING,
-        )
-
+        
         # Если реальный режим, сразу обновляем баланс.
         if Config.REAL_TRADING:
             await self.pos_manager.refresh_balance()
+            
+            # [НОВОЕ] Reconciliation при старте
+            try:
+                recon_ok = await self.pos_manager.reconcile()
+                if not recon_ok:
+                    log.error("Reconciliation провалился — бот не может безопасно торговать")
+                    self.trading_enabled[0] = False
+            except Exception as e:
+                log.error(f"Ошибка reconciliation: {e}")
 
         # Запускаем WebSocket-клиент как фоновую задачу.
         ws_task = asyncio.create_task(
             self.ws_client.run(self.session, self._stop_flag)
         )
-
         self._tasks.append(ws_task)
+
+        # [ИСПРАВЛЕНО] Запускаем position_watcher как фоновую задачу
+        # Он отслеживает открытые позиции каждые POSITION_CHECK_INTERVAL секунд
+        watcher_task = asyncio.create_task(
+            self.position_watcher()
+        )
+        self._tasks.append(watcher_task)
 
         # Даём WebSocket 5 секунд на первое подключение.
         # Если не успел — продолжаем без него.
@@ -217,6 +218,7 @@ class WaveXScanner:
             )
         except Exception:
             log.warning("WS не готов, продолжаем без него")
+
 
     async def close(self):
         """

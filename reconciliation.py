@@ -297,17 +297,12 @@ class Reconciliator:
     ):
         """
         Сценарий 1 или 3: позиция есть и в БД, и на бирже.
-        Проверяем наличие SL/TP. Если нет — аварийная ветка.
         """
-        # Восстанавливаем in-memory из данных биржи (биржа приоритетна)
+        # Восстанавливаем in-memory из данных биржи
         restored_pos = self._build_position_from_exchange(symbol, db_pos, ex_pos)
         self.tracker.positions[symbol] = restored_pos
 
-        # Обновляем БД актуальными данными с биржи
-        self.db.save_open_position(restored_pos)
-
-        # [НОВОЕ] Восстанавливаем кэш algo-ордеров в RealExchange
-        # Это нужно, чтобы runtime-проверка SL работала корректно
+        # [ИСПРАВЛЕНО] Восстанавливаем кэш algo-ордеров в RealExchange
         if hasattr(self.exchange, '_algo_orders'):
             sl_id = restored_pos.get("sl_order_id")
             sl_cid = restored_pos.get("sl_client_id")
@@ -331,15 +326,13 @@ class Reconciliator:
                     f"(SL_id={sl_id}, TP_id={tp_id})"
                 )
 
-
+        # Обновляем БД
+        self.db.save_open_position(restored_pos)
         result.restored.append(symbol)
 
-        # Проверяем наличие SL/TP
+        # Проверяем наличие SL
         has_sl = bool(restored_pos.get("sl_order_id") or restored_pos.get("sl_client_id"))
-        has_tp = bool(restored_pos.get("tp_order_id") or restored_pos.get("tp_client_id"))
-
         if not has_sl:
-            # Сценарий 3: позиция есть, SL нет → аварийная ветка
             log.warning(f"[RECON] {symbol}: позиция есть, но SL отсутствует! Аварийная ветка.")
             await self._emergency_restore_sl(symbol, restored_pos, result)
         else:
@@ -359,11 +352,12 @@ class Reconciliator:
     ) -> dict:
         """
         Строит позицию для in-memory, используя данные биржи как приоритетные.
+        [ИСПРАВЛЕНО] Добавляет все runtime-поля, которых нет в БД.
         """
         position_amt = ex_pos.get("position_amt", 0.0)
         side = "LONG" if position_amt > 0 else "SHORT"
 
-        # Берём из биржи: qty, entry_price
+        # Берём из биржи: qty, entry_price (биржа приоритетна)
         # Из БД: всё остальное (SL/TP цены, score и т.д.)
         restored = dict(db_pos)  # копия
         restored["side"] = side
@@ -371,9 +365,32 @@ class Reconciliator:
         restored["remaining_qty"] = abs(position_amt)
         restored["entry_price"] = ex_pos.get("entry_price", db_pos.get("entry_price", 0.0))
 
-        # Пытаемся восстановить sl_order_id из БД (если он там был)
-        # В будущем здесь можно запрашивать algo-ордера с биржи
-        # Но пока полагаемся на данные из БД
+        # [ИСПРАВЛЕНО] Восстанавливаем runtime-поля, которых нет в БД
+        # highest — для трейлинга, стартуем с entry_price
+        if not restored.get("highest"):
+            restored["highest"] = restored["entry_price"]
+        
+        # mfe/mae — для статистики, стартуем с 0
+        if restored.get("mfe") is None:
+            restored["mfe"] = 0.0
+        if restored.get("mae") is None:
+            restored["mae"] = 0.0
+        
+        # last_watch_price — для EXTERNAL_CLOSE
+        if not restored.get("last_watch_price"):
+            restored["last_watch_price"] = restored["entry_price"]
+        
+        # closing — флаг блокировки повторного закрытия
+        restored["closing"] = False
+        
+        # trail_active, breakeven_set, tp1_done, tp2_done — булевы поля
+        restored.setdefault("trail_active", False)
+        restored.setdefault("breakeven_set", False)
+        restored.setdefault("tp1_done", False)
+        restored.setdefault("tp2_done", False)
+        restored.setdefault("tp1_closed_qty", 0.0)
+        restored.setdefault("realized_pnl", 0.0)
+        restored.setdefault("closed_qty", 0.0)
 
         return restored
 
@@ -461,12 +478,31 @@ class Reconciliator:
         """
         Сценарий 5: осиротевшие ордера.
         Ордер есть на бирже, но позиции под него нет.
+        [ИСПРАВЛЕНО] Теперь учитываем и обычные, и algo-ордера.
         """
-        # Собираем символы, по которым есть ордера
+        # [НОВОЕ] Получаем список algo-ордеров (SL/TP)
+        try:
+            algo_orders = await self.rest.get_open_algo_orders()
+            log.info(f"[RECON] Найдено {len(algo_orders)} открытых algo-ордеров")
+        except Exception as e:
+            log.error(f"[RECON] Не удалось получить algo-ордера: {e}")
+            algo_orders = []
+
+        # Собираем символы, по которым есть ордера (обычные + algo)
         orders_by_symbol: Dict[str, List[dict]] = {}
+        
+        # Обычные ордера
         for o in all_open_orders:
             sym = o.get("symbol", "")
             if sym:
+                orders_by_symbol.setdefault(sym, []).append(o)
+
+        # Algo-ордера
+        for o in algo_orders:
+            sym = o.get("symbol", "")
+            if sym:
+                # Помечаем как algo, чтобы потом правильно отменять
+                o["_is_algo"] = True
                 orders_by_symbol.setdefault(sym, []).append(o)
 
         for symbol, orders in orders_by_symbol.items():
@@ -477,17 +513,25 @@ class Reconciliator:
             # Позиции нет, но ордера есть → осиротевшие
             for o in orders:
                 try:
+                    is_algo = o.get("_is_algo", False)
+                    order_id = o.get("algo_id") if is_algo else o.get("order_id")
+                    client_id = (
+                        o.get("client_algo_id") if is_algo
+                        else o.get("client_order_id")
+                    )
                     log.warning(
                         f"[RECON] Осиротевший ордер: {symbol} "
-                        f"id={o.get('order_id')} type={o.get('type')} "
+                        f"{'[algo] ' if is_algo else ''}"
+                        f"id={order_id} type={o.get('type')} "
                         f"side={o.get('side')} — отменяю"
                     )
                     await self.rest.cancel_order(
                         symbol,
-                        o.get("order_id"),
-                        client_order_id=o.get("client_order_id"),
+                        order_id,
+                        client_order_id=client_id,
+                        is_algo=is_algo,
                     )
-                    result.orphan_orders.append(f"{symbol}:{o.get('order_id')}")
+                    result.orphan_orders.append(f"{symbol}:{order_id}")
                 except Exception as e:
                     log.error(f"[RECON] Ошибка отмены осиротевшего ордера {symbol}: {e}")
 
