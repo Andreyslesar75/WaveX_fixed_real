@@ -223,37 +223,35 @@ class PositionManager:
                 tp2_price = price * (1 + tp2_pct / 100)
 
         # ------------------------------------------------------------
-        # Размер позиции
+        # Размер позиции: ВРЕМЕННО РУЧНОЙ ФИКСИРОВАННЫЙ ОБЪЁМ
         # ------------------------------------------------------------
-        base_size = calculate_position_size(
-            self.capital,
-            sl_pct,
-            Config.RISK_PER_TRADE_PCT,
-            Config.MAX_POSITION_PCT,
-        )
-        size = self._calculate_adaptive_size(base_size)
-        
-        # [НОВОЕ]
-        # Если размер слишком маленький, но включён флаг OVERRIDE
-        # и баланс позволяет — используем MIN_POSITION_SIZE_USDT.
-        # Это нужно для тестирования на малых балансах.
-        if (
-            size < Config.MIN_POSITION_SIZE_USDT
-            and Config.ALLOW_MIN_POSITION_OVERRIDE
-            and self.capital >= Config.MIN_POSITION_SIZE_USDT * 1.1  # запас на комиссию
-        ):
-            log.info(
-                f"{symbol}: размер {size:.2f} USDT < минимума, "
-                f"но ALLOW_MIN_POSITION_OVERRIDE=True — "
-                f"использую {Config.MIN_POSITION_SIZE_USDT:.2f} USDT"
+        # [ВРЕМЕННАЯ ЗАМЕНА]
+        # Принятие решения о входе оставлено по сигналу.
+        # Формула риска больше НЕ блокирует открытие сделки.
+        # Мы используем фиксированный размер, чтобы исключить влияние
+        # расчёта по RISK_PER_TRADE_PCT на логику открытия пока идёт откат.
+        #
+        # ВАЖНО: проверки minNotional и balance оставлены.
+        manual_size_usdt = 20.0
+        size = manual_size_usdt
+
+        # Если фиксированный размер ниже внутреннего минимума, не даём
+        # сделке открыться — это сохраняет защиту от слишком маленьких ордеров.
+        if size < Config.MIN_POSITION_SIZE_USDT:
+            log.warning(
+                f"{symbol}: ручной размер {size:.2f} USDT ниже MIN_POSITION_SIZE_USDT "
+                f"({Config.MIN_POSITION_SIZE_USDT:.2f}), отказ"
             )
-            size = Config.MIN_POSITION_SIZE_USDT
-        
+            return False, (
+                f"size_too_small "
+                f"({size:.2f} < min {Config.MIN_POSITION_SIZE_USDT:.2f})"
+            )
+
         bsym = to_binance_symbol(symbol)
         info = await self.rest._get_symbol_info(bsym)
         min_notional = info.get("minNotional", 5.0)
-        
-        # Если размер слишком маленький, сделка отклоняется.
+
+        # Оставляем проверки биржевого минимума и доступного баланса.
         if not size_is_valid(size, min_notional):
             log.warning(
                 f"{symbol}: размер {size:.2f} USDT "

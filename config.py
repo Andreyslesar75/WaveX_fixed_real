@@ -91,11 +91,11 @@ class Config:
     # Пример: капитал 1000$, MAX_POSITION_PCT = 20.0
     # Значит одна позиция не должна быть больше 200$.
     # [МОЖНО МЕНЯТЬ] но для начала не ставь больше 20.
-    MAX_POSITION_PCT = 20.0
+    MAX_POSITION_PCT = 98.0
 
     # Сколько максимум позиций может быть открыто одновременно.
     # [МОЖНО МЕНЯТЬ] но для начала лучше 1-3.
-    MAX_OPEN_POSITIONS = 2
+    MAX_OPEN_POSITIONS = 1
 
     # [НОВОЕ]
     # Дневной лимит убытков в USDT.
@@ -200,13 +200,14 @@ class Config:
     IMPULSE_WINDOW = 60
 
     # Минимальный размер импульса в процентах.
-    IMPULSE_MIN_PCT = 8.0
+    # [2026-09-06] user change: minimum valid impulse set to 6.5%, strong impulse set to 16%.
+    IMPULSE_MIN_PCT = 6.5
 
     # Максимальный возраст импульса в 1-минутных барах.
     IMPULSE_MAX_AGE_BARS = 40
 
     # Сильный импульс в процентах.
-    IMPULSE_STRONG_PCT = 18.0
+    IMPULSE_STRONG_PCT = 16.0
 
     # Максимальная длина импульса в барах.
     IMPULSE_MAX_BARS = 40
@@ -270,10 +271,10 @@ class Config:
     # ================================================================
 
     # Минимальный score для LONG.     55     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    SCORE_TRADE_THRESHOLD = 35
+    SCORE_TRADE_THRESHOLD = 41
 
     # Минимальный score для SHORT.     53     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    SCORE_TRADE_THRESHOLD_SHORT = 33
+    SCORE_TRADE_THRESHOLD_SHORT = 35
 
     # Score, начиная с которого сигнал показывается как "наблюдаемый".
     SCORE_WATCH_THRESHOLD = 28
@@ -312,7 +313,7 @@ class Config:
     ATR_SL_MIN_PCT = 1.8
 
     # Максимальный стоп-лосс в процентах.
-    ATR_SL_MAX_PCT = 4.0
+    ATR_SL_MAX_PCT = 2.7
 
     # Сколько свечей смотреть для структурного уровня.
     SWING_LOW_CANDLES = 6

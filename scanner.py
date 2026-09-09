@@ -219,6 +219,25 @@ class WaveXScanner:
         except Exception:
             log.warning("WS не готов, продолжаем без него")
 
+        # Включаем торговлю по умолчанию, если reconciliation не запретил её.
+        # Раньше торговля была выключена по умолчанию, и из‑за этого
+        # бот никогда не пытался открывать сделки.
+        try:
+            can_trade = True
+            if Config.REAL_TRADING:
+                # Если reconciliation явно пометил как провал — не включаем.
+                # В момент ошибки reconciliation мы устанавливали
+                # self.trading_enabled[0] = False выше.
+                if not self.trading_enabled[0]:
+                    can_trade = False
+
+            if can_trade:
+                self.trading_enabled[0] = True
+                log.info("Торговля автоматически включена после инициализации")
+        except Exception:
+            # В любом случае продолжаем без аварийного поведения.
+            pass
+
 
     async def close(self):
         """
