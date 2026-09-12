@@ -527,39 +527,41 @@ class BinanceWsClient:
         if not self.rest_client:
             log.error("User Data Stream: rest_client не установлен, пропускаю")
             return False
+        if not self.session:
+            log.error("User Data Stream: session не установлена, пропускаю")
+            return False
             
         try:
-            # Создаем listenKey через REST API
-            resp = await self.rest_client.post("/fapi/v1/listenKey")
-            listen_key = resp["listenKey"]
+            # [ИСПРАВЛЕНО] Используем правильный метод из api.py
+            listen_key = await self.rest_client.create_listen_key()
+            if not listen_key:
+                log.error("User Data Stream: не удалось получить listenKey")
+                return False
             log.info(f"User Data Stream: listenKey получен: {listen_key[:10]}...")
             
-            # Сохраняем listenKey
             self._listen_key = listen_key
-            
-            # Подписываемся на события
             self._user_data_stream_task = asyncio.create_task(
                 self._user_data_stream_loop(listen_key)
             )
-            
-            # Запускаем keepalive
             self._keepalive_task = asyncio.create_task(
                 self._keepalive_loop(listen_key)
             )
-            
             return True
         except Exception as e:
             log.error(f"Не удалось запустить User Data Stream: {e}")
             return False
 
+        
     async def _user_data_stream_loop(self, listen_key: str):
         """Цикл обработки событий из User Data Stream."""
-        # [ИСПРАВЛЕНО] Используем self.session, который теперь передаётся в __init__
         if not self.session:
-            log.error("User Data Stream: session не установлен")
+            log.error("User Data Stream: session не установлена, пропускаю")
             return
+            
+        # [ИСПРАВЛЕНО] Убираем "/stream" из базового URL, так как для listenKey нужен чистый домен + "/ws/"
+        base_ws = Config.BINANCE_WS_URL.replace("/stream", "")
+        url = f"{base_ws}/ws/{listen_key}"
         
-        url = f"{Config.BINANCE_WS_URL}/ws/{listen_key}"
         while not self._stop_flag[0]:
             try:
                 async with self.session.ws_connect(url, heartbeat=20) as ws:
@@ -572,11 +574,10 @@ class BinanceWsClient:
                                 data = json.loads(msg.data)
                                 await self._handle_user_data(data)
                             elif msg.type in (aiohttp.WSMsgType.CLOSED,
-                                            aiohttp.WSMsgType.CLOSING,
-                                            aiohttp.WSMsgType.ERROR):
+                                              aiohttp.WSMsgType.CLOSING,
+                                              aiohttp.WSMsgType.ERROR):
                                 break
                         except asyncio.TimeoutError:
-                            # Проверяем активность
                             if time.time() - self._last_user_data_time > 120:
                                 log.warning("User Data Stream: тишина > 120с, реконнект")
                                 break
@@ -594,7 +595,10 @@ class BinanceWsClient:
                 if self._stop_flag[0]:
                     break
                 log.debug("User Data Stream: отправка keepalive")
-                await self.rest_client.put("/fapi/v1/listenKey")
+                # [ИСПРАВЛЕНО] Используем новый метод из api.py
+                ok = await self.rest_client.keepalive_listen_key()
+                if not ok:
+                    log.warning("User Data Stream: keepalive не прошёл, возможен реконнект")
             except Exception as e:
                 log.error(f"User Data Stream keepalive ошибка: {e}")
 
@@ -607,22 +611,24 @@ class BinanceWsClient:
         self._last_user_data_time = time.time()
         
         if event_type == "ORDER_TRADE_UPDATE":
-            # Обработка обновления ордера
             order = data.get("o", {})
             if not order:
                 return
             symbol = to_internal_symbol(order.get("s", ""))
             if not symbol:
                 return
-            
+                
             # [ИСПРАВЛЕНО] Безопасная проверка tracker
             if self._tracker and symbol in self._tracker.positions:
-                await self._process_order_update(symbol, order)
-            else:
-                log.debug(f"User Data Stream: ORDER_TRADE_UPDATE для {symbol}, но позиция не в tracker")
-        
+                await self._process_order_update(
+                    symbol, 
+                    order.get("i"), 
+                    order.get("c"), 
+                    order.get("X"), 
+                    float(order.get("z", 0))
+                )
+                
         elif event_type == "ACCOUNT_UPDATE":
-            # Обработка обновления аккаунта
             update_data = data.get("a", {})
             if update_data:
                 await self._process_account_update(update_data)

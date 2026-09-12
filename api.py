@@ -1961,3 +1961,16 @@ class BinanceFuturesRestClient:
         if resp and "listenKey" in resp:
             return resp["listenKey"]
         return None
+
+
+    async def keepalive_listen_key(self) -> bool:
+        """
+        Продлевает жизнь listenKey для User Data Stream (Futures).
+        Нужно вызывать каждые 30 минут (1800 секунд).
+        """
+        resp = await self._request(
+            "PUT",
+            "/fapi/v1/listenKey",
+            signed=False,
+        )
+        return resp is not None

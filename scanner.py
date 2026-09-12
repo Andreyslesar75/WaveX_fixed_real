@@ -84,8 +84,7 @@ class WaveXScanner:
         self.session: Optional[aiohttp.ClientSession] = None
         # REST-клиент Binance Futures.
         self.rest_client: Optional[BinanceFuturesRestClient] = None
-        # WebSocket-клиент для микроструктуры.
-        # [ИСПРАВЛЕНО] Создаётся в init() после rest_client и session
+        # WebSocket-клиент для микроструктуры (создается в init).
         self.ws_client: Optional[BinanceWsClient] = None
         # Менеджер позиций.
         self.pos_manager: Optional[PositionManager] = None
@@ -108,8 +107,9 @@ class WaveXScanner:
         # Список фоновых asyncio-задач.
         self._tasks: List[asyncio.Task] = []
         # Флаг включения/отключения торговли.
-        self.trading_enabled = [False]
+        self.trading_enabled = [True]
 
+    
     # ================================================================
     # СЛУЖЕБНОЕ
     # ================================================================
@@ -137,13 +137,7 @@ class WaveXScanner:
     # ================================================================
 
     async def init(self):
-        """
-        Инициализирует сканер:
-        - HTTP-сессию;
-        - REST-клиент;
-        - PositionManager;
-        - WebSocket-клиент.
-        """
+        """Инициализирует сканер."""
         connector = aiohttp.TCPConnector(
             limit=Config.HTTP_CONNECTOR_LIMIT, ttl_dns_cache=300,
         )
@@ -152,13 +146,7 @@ class WaveXScanner:
             Config.BINANCE_API_KEY, Config.BINANCE_API_SECRET, self.session,
         )
         
-        # [ИСПРАВЛЕНО] Создаём ws_client ПОСЛЕ rest_client и session
-        self.ws_client = BinanceWsClient(
-            rest_client=self.rest_client,
-            session=self.session,
-        )
-        
-        # [НОВОЕ] Блокирующая инициализация кэша фильтров
+        # 1. Инициализация кэша фильтров
         try:
             await self.rest_client.filters_cache.initialize()
         except Exception as e:
@@ -166,45 +154,37 @@ class WaveXScanner:
             if self.session and not self.session.closed:
                 await self.session.close()
             raise
-        
-        # [НОВОЕ] Запуск фонового обновления кэша
         self.rest_client.filters_cache.start_background_updater()
         
-        # [ИСПРАВЛЕНО] Создаём PositionManager ОДИН раз
+        # 2. Создание клиентов (строго в этом порядке!)
         self.pos_manager = PositionManager(self.rest_client, Config.REAL_TRADING)
+        self.ws_client = BinanceWsClient(rest_client=self.rest_client, session=self.session)
         
-        # [ИСПРАВЛЕНО] Передаём tracker в ws_client для обработки ORDER_TRADE_UPDATE
+        # 3. Передача трекера в WS для обработки ORDER_TRADE_UPDATE
         self.ws_client.set_tracker(self.pos_manager.tracker)
-        
-        # Сначала запускаем WebSocket (одна задача, не дублируем)
-        ws_task = asyncio.create_task(
-            self.ws_client.run(self.session, self._stop_flag)
-        )
+
+        # 4. Запуск WebSocket (ОДИН раз)
+        ws_task = asyncio.create_task(self.ws_client.run(self.session, self._stop_flag))
         self._tasks.append(ws_task)
-        
-        # Запускаем User Data Stream
+
+        # 5. Запуск User Data Stream
         if Config.REAL_TRADING:
             user_data_ok = await self.ws_client.start_user_data_stream()
             if not user_data_ok:
-                # [ИСПРАВЛЕНО] Не завершаем бот, а продолжаем без User Data Stream
-                # Бот может работать без WS (через REST-опрос), просто медленнее
-                log.warning(
-                    "User Data Stream не запустился. "
-                    "Бот продолжит работу через REST-опрос позиций."
-                )
-        
-        # Ждем, пока WebSocket полностью подключится
+                log.warning("User Data Stream не запустился. Бот продолжит работу через REST-опрос.")
+
+        # 6. Ожидание готовности WS
         log.info("Ждем подключения WebSocket...")
         try:
-            await asyncio.wait_for(
-                self.ws_client.wait_until_ready(),
-                timeout=10.0,
-            )
+            await asyncio.wait_for(self.ws_client.wait_until_ready(), timeout=10.0)
             log.info("WebSocket готов к работе")
         except Exception:
             log.warning("WS не готов, продолжаем с ограниченной функциональностью")
-        
-        # Теперь запускаем reconciliation
+
+        # 7. Включаем торговлю по умолчанию (reconciliation при необходимости выключит её)
+        self.trading_enabled[0] = True
+
+        # 8. Reconciliation
         if Config.REAL_TRADING:
             await self.pos_manager.refresh_balance()
             try:
@@ -213,40 +193,23 @@ class WaveXScanner:
                     log.error("Reconciliation провалился — бот не может безопасно торговать")
                     self.trading_enabled[0] = False
                 else:
-                    # Подписываемся на восстановленные позиции
                     if self.pos_manager.positions:
                         open_symbols = list(self.pos_manager.positions.keys())
                         log.info(f"[WS] Подписываемся на {len(open_symbols)} восстановленных позиций")
                         await self.ws_client.subscribe(open_symbols)
             except Exception as e:
                 log.error(f"Ошибка reconciliation: {e}")
-        
-        # [ИСПРАВЛЕНО] Запускаем position_watcher как фоновую задачу
-        watcher_task = asyncio.create_task(
-            self.position_watcher()
-        )
+                self.trading_enabled[0] = False
+
+        # 9. Запуск position_watcher
+        watcher_task = asyncio.create_task(self.position_watcher())
         self._tasks.append(watcher_task)
-        
-        # Даём WebSocket 5 секунд на первое подключение.
-        try:
-            await asyncio.wait_for(
-                self.ws_client._ws_ready.wait(),
-                timeout=10.0,
-            )
-        except Exception:
-            log.warning("WS не готов, продолжаем без него")
-        
-        # Включаем торговлю по умолчанию
-        try:
-            can_trade = True
-            if Config.REAL_TRADING:
-                if not self.trading_enabled[0]:
-                    can_trade = False
-            if can_trade:
-                self.trading_enabled[0] = True
-                log.info("Торговля автоматически включена после инициализации")
-        except Exception:
-            pass
+
+        # 10. Итоговый лог
+        if self.trading_enabled[0]:
+            log.info("Торговля автоматически включена после инициализации")
+        else:
+            log.warning("Торговля отключена из-за ошибок инициализации")
 
 
     async def close(self):
