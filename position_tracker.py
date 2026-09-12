@@ -1176,3 +1176,52 @@ class PositionTracker:
             )
             return True
         return False
+
+    async def handle_order_update(self, symbol: str, order_id: str, client_order_id: str, status: str, filled_qty: float):
+        """
+        [НОВОЕ]
+        Обрабатывает обновление ордера из User Data Stream.
+        Вызывается напрямую из ws_client при получении ORDER_TRADE_UPDATE.
+        """
+        pos = self.positions.get(symbol)
+        if not pos:
+            log.debug(f"[TRACKER] {symbol}: позиция не найдена для обработки обновления ордера")
+            return
+        
+        # Проверяем, является ли это SL/TP ордером
+        is_sl = (pos.get("sl_order_id") == order_id or 
+                pos.get("sl_client_id") == client_order_id)
+        is_tp = (pos.get("tp_order_id") == order_id or 
+                pos.get("tp_client_id") == client_order_id)
+        
+        # Обработка статусов
+        if status == "FILLED":
+            log.info(f"{symbol}: ордер {order_id} полностью исполнен")
+            
+            if is_sl:
+                log.info(f"{symbol}: SL сработал, закрываем позицию")
+                # Вызываем обработку SL
+                await self._close_position(symbol, pos["sl_price"], "SL")
+            
+            elif is_tp:
+                log.info(f"{symbol}: TP сработал")
+                # Проверяем, какой TP (TP1 или TP2)
+                if pos.get("tp1_done", False):
+                    # Это TP2
+                    await self._close_position(symbol, pos["tp2_price"], "TP2")
+                else:
+                    # Это TP1
+                    await self._handle_tp1_fill(symbol, filled_qty)
+        
+        elif status == "CANCELED":
+            log.info(f"{symbol}: ордер {order_id} отменен")
+            
+            # Если это был SL, возможно, нужно восстановить
+            if is_sl:
+                log.warning(f"{symbol}: SL отменен, запускаем аварийную ветку")
+                await self._emergency_restore_sl(symbol, pos)
+            
+            # Если это был TP, возможно, нужно восстановить
+            elif is_tp:
+                log.warning(f"{symbol}: TP отменен, запускаем восстановление")
+                # Здесь можно добавить логику восстановления TP

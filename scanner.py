@@ -182,19 +182,51 @@ class WaveXScanner:
         
         # [ИСПРАВЛЕНО] Создаём PositionManager ОДИН раз
         self.pos_manager = PositionManager(self.rest_client, Config.REAL_TRADING)
-        
-        # Если реальный режим, сразу обновляем баланс.
+    
+
+        # Сначала запускаем WebSocket
+        ws_task = asyncio.create_task(
+            self.ws_client.run(self.session, self._stop_flag)
+        )
+        self._tasks.append(ws_task)
+
+        # Запускаем User Data Stream
+        if Config.REAL_TRADING:
+            user_data_ok = await self.ws_client.start_user_data_stream()
+            if not user_data_ok:
+                log.error("Не удалось запустить User Data Stream. Завершение.")
+                self._stop_flag[0] = True
+                return
+
+        # Ждем, пока WebSocket полностью подключится
+        log.info("Ждем подключения WebSocket...")
+        try:
+            await asyncio.wait_for(
+                self.ws_client.wait_until_ready(),
+                timeout=10.0,
+            )
+            log.info("WebSocket готов к работе")
+        except Exception:
+            log.warning("WS не готов, продолжаем с ограниченной функциональностью")
+
+        # Теперь запускаем reconciliation
         if Config.REAL_TRADING:
             await self.pos_manager.refresh_balance()
             
-            # [НОВОЕ] Reconciliation при старте
             try:
                 recon_ok = await self.pos_manager.reconcile()
                 if not recon_ok:
                     log.error("Reconciliation провалился — бот не может безопасно торговать")
                     self.trading_enabled[0] = False
+                else:
+                    # Подписываемся на восстановленные позиции
+                    if self.pos_manager.positions:
+                        open_symbols = list(self.pos_manager.positions.keys())
+                        log.info(f"[WS] Подписываемся на {len(open_symbols)} восстановленных позиций")
+                        await self.ws_client.subscribe(open_symbols)
+
             except Exception as e:
-                log.error(f"Ошибка reconciliation: {e}")
+                            log.error(f"Ошибка reconciliation: {e}")
 
         # Запускаем WebSocket-клиент как фоновую задачу.
         ws_task = asyncio.create_task(

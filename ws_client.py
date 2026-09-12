@@ -507,3 +507,119 @@ class BinanceWsClient:
             price = d.get("last_price", 0.0)
 
             return price if price > 0 else None
+        
+    async def start_user_data_stream(self):
+        """Создает и начинает слушать user data stream."""
+        try:
+            # Создаем listenKey
+            resp = await self.rest_client.post("/fapi/v1/listenKey")
+            listen_key = resp["listenKey"]
+            log.info(f"User Data Stream: listenKey получен: {listen_key[:10]}...")
+            
+            # Сохраняем listenKey
+            self._listen_key = listen_key
+            
+            # Подписываемся на события
+            self._user_data_stream_task = asyncio.create_task(
+                self._user_data_stream_loop(listen_key)
+            )
+            
+            # Запускаем keepalive
+            self._keepalive_task = asyncio.create_task(
+                self._keepalive_loop(listen_key)
+            )
+            
+            return True
+        except Exception as e:
+            log.error(f"Не удалось запустить User Data Stream: {e}")
+            return False
+
+    async def _user_data_stream_loop(self, listen_key: str):
+        """Цикл обработки событий из User Data Stream."""
+        url = f"{Config.BINANCE_WS_URL}/ws/{listen_key}"
+        
+        while not self._stop_flag[0]:
+            try:
+                async with self.session.ws_connect(url, heartbeat=20) as ws:
+                    log.info("User Data Stream: подключен")
+                    self._user_data_connected = True
+                    
+                    while not self._stop_flag[0]:
+                        try:
+                            msg = await asyncio.wait_for(ws.receive(), timeout=60.0)
+                            if msg.type == aiohttp.WSMsgType.TEXT:
+                                data = json.loads(msg.data)
+                                await self._handle_user_data(data)
+                            elif msg.type in (aiohttp.WSMsgType.CLOSED, 
+                                            aiohttp.WSMsgType.CLOSING,
+                                            aiohttp.WSMsgType.ERROR):
+                                break
+                        except asyncio.TimeoutError:
+                            # Проверяем активность
+                            if time.time() - self._last_user_data_time > 120:
+                                log.warning("User Data Stream: тишина > 120с, реконнект")
+                                break
+                    self._user_data_connected = False
+                await asyncio.sleep(2)
+            except Exception as e:
+                log.error(f"User Data Stream ошибка: {e}")
+                await asyncio.sleep(5)
+
+    async def _keepalive_loop(self, listen_key: str):
+        """Отправляет keepalive каждые 30 минут."""
+        while not self._stop_flag[0]:
+            try:
+                await asyncio.sleep(1800)  # 30 минут
+                if self._stop_flag[0]:
+                    break
+                log.debug("User Data Stream: отправка keepalive")
+                await self.rest_client.put("/fapi/v1/listenKey")
+            except Exception as e:
+                log.error(f"User Data Stream keepalive ошибка: {e}")
+
+    async def _handle_user_data(self, data: dict):
+        """Обрабатывает события из User Data Stream."""
+        event_type = data.get("e")
+        if not event_type:
+            return
+        
+        self._last_user_data_time = time.time()
+        
+        if event_type == "ORDER_TRADE_UPDATE":
+            # Обработка обновления ордера
+            order = data["o"]
+            symbol = to_internal_symbol(order["s"])
+            
+            # Проверяем, есть ли эта позиция в tracker
+            if symbol in self._tracker.positions:
+                await self._process_order_update(symbol, order)
+                
+        elif event_type == "ACCOUNT_UPDATE":
+            # Обработка обновления аккаунта
+            update_data = data["a"]
+            # Можно обновлять баланс и позиции
+            await self._process_account_update(update_data)
+
+    async def _process_order_update(self, symbol: str, order: dict):
+        """Обрабатывает обновление ордера из User Data Stream."""
+        order_id = order.get("i")
+        client_order_id = order.get("c")
+        status = order.get("X")
+        qty = float(order.get("q", 0))
+        filled_qty = float(order.get("z", 0))
+        
+        log.info(
+            f"User Data Stream: обновление ордера {symbol} "
+            f"id={order_id} client_id={client_order_id} "
+            f"status={status} filled={filled_qty}/{qty}"
+        )
+        
+        # Передаем событие в tracker
+        if self._tracker:
+            await self._tracker.handle_order_update(
+                symbol, 
+                order_id, 
+                client_order_id, 
+                status, 
+                filled_qty
+            )
