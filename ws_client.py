@@ -48,30 +48,44 @@ class BinanceWsClient:
     WebSocket-клиент Binance Futures.
     """
 
-    def __init__(self):
+    def __init__(self, rest_client=None, session=None):
         # Хранилище микроструктуры по каждому символу.
         self._data: Dict[str, dict] = {}
-
         # Lock нужен, потому что данные читаются и пишутся
         # из разных asyncio-задач.
         self._lock = asyncio.Lock()
-
         # Символы, на которые бот уже подписан.
         self._subscribed: set = set()
-
         # Событие, которое говорит, что WS хотя бы один раз подключился.
         self._ws_ready = asyncio.Event()
-
         # ID запросов SUBSCRIBE/UNSUBSCRIBE.
         self._req_id = 1
-
         # Отложенные подписки и отписки.
         self._pending_subs = []
         self._pending_unsubs = []
-
-        # [НОВОЕ]
-        # Флаг реального состояния WebSocket.
+        # [НОВОЕ] Флаг реального состояния WebSocket.
         self.connected = False
+        self.rest_client = rest_client
+        # [ИСПРАВЛЕНО] session теперь передаётся извне
+        self.session = session
+        self._stop_flag = [False]
+        # [НОВОЕ] Поля для User Data Stream
+        self._listen_key = None
+        self._user_data_connected = False
+        self._user_data_stream_task = None
+        self._keepalive_task = None
+        self._last_user_data_time = 0
+        # [НОВОЕ] Трекер позиций для обработки ORDER_TRADE_UPDATE
+        self._tracker = None
+
+    def set_tracker(self, tracker):
+        """
+        [НОВОЕ]
+        Устанавливает ссылку на PositionTracker.
+        Вызывается из scanner.init() после создания pos_manager.
+        """
+        self._tracker = tracker
+        log.info("User Data Stream: tracker установлен")
 
     def _default(self) -> dict:
         """
@@ -510,8 +524,12 @@ class BinanceWsClient:
         
     async def start_user_data_stream(self):
         """Создает и начинает слушать user data stream."""
+        if not self.rest_client:
+            log.error("User Data Stream: rest_client не установлен, пропускаю")
+            return False
+            
         try:
-            # Создаем listenKey
+            # Создаем listenKey через REST API
             resp = await self.rest_client.post("/fapi/v1/listenKey")
             listen_key = resp["listenKey"]
             log.info(f"User Data Stream: listenKey получен: {listen_key[:10]}...")
@@ -536,21 +554,24 @@ class BinanceWsClient:
 
     async def _user_data_stream_loop(self, listen_key: str):
         """Цикл обработки событий из User Data Stream."""
-        url = f"{Config.BINANCE_WS_URL}/ws/{listen_key}"
+        # [ИСПРАВЛЕНО] Используем self.session, который теперь передаётся в __init__
+        if not self.session:
+            log.error("User Data Stream: session не установлен")
+            return
         
+        url = f"{Config.BINANCE_WS_URL}/ws/{listen_key}"
         while not self._stop_flag[0]:
             try:
                 async with self.session.ws_connect(url, heartbeat=20) as ws:
                     log.info("User Data Stream: подключен")
                     self._user_data_connected = True
-                    
                     while not self._stop_flag[0]:
                         try:
                             msg = await asyncio.wait_for(ws.receive(), timeout=60.0)
                             if msg.type == aiohttp.WSMsgType.TEXT:
                                 data = json.loads(msg.data)
                                 await self._handle_user_data(data)
-                            elif msg.type in (aiohttp.WSMsgType.CLOSED, 
+                            elif msg.type in (aiohttp.WSMsgType.CLOSED,
                                             aiohttp.WSMsgType.CLOSING,
                                             aiohttp.WSMsgType.ERROR):
                                 break
@@ -560,7 +581,7 @@ class BinanceWsClient:
                                 log.warning("User Data Stream: тишина > 120с, реконнект")
                                 break
                     self._user_data_connected = False
-                await asyncio.sleep(2)
+                    await asyncio.sleep(2)
             except Exception as e:
                 log.error(f"User Data Stream ошибка: {e}")
                 await asyncio.sleep(5)
@@ -587,18 +608,32 @@ class BinanceWsClient:
         
         if event_type == "ORDER_TRADE_UPDATE":
             # Обработка обновления ордера
-            order = data["o"]
-            symbol = to_internal_symbol(order["s"])
+            order = data.get("o", {})
+            if not order:
+                return
+            symbol = to_internal_symbol(order.get("s", ""))
+            if not symbol:
+                return
             
-            # Проверяем, есть ли эта позиция в tracker
-            if symbol in self._tracker.positions:
+            # [ИСПРАВЛЕНО] Безопасная проверка tracker
+            if self._tracker and symbol in self._tracker.positions:
                 await self._process_order_update(symbol, order)
-                
+            else:
+                log.debug(f"User Data Stream: ORDER_TRADE_UPDATE для {symbol}, но позиция не в tracker")
+        
         elif event_type == "ACCOUNT_UPDATE":
             # Обработка обновления аккаунта
-            update_data = data["a"]
-            # Можно обновлять баланс и позиции
-            await self._process_account_update(update_data)
+            update_data = data.get("a", {})
+            if update_data:
+                await self._process_account_update(update_data)
+
+    async def _process_account_update(self, update_data: dict):
+        """
+        Обрабатывает обновление аккаунта из User Data Stream.
+        Пока просто логируем — балансы обновляются через REST.
+        """
+        log.debug(f"User Data Stream: ACCOUNT_UPDATE получен")
+        # В будущем можно обновлять self.capital из update_data["B"]
 
     async def _process_order_update(self, symbol: str, order: dict):
         """Обрабатывает обновление ордера из User Data Stream."""
@@ -623,3 +658,23 @@ class BinanceWsClient:
                 status, 
                 filled_qty
             )
+
+
+    async def wait_until_ready(self, timeout=10.0):
+        """Ждет, пока WebSocket полностью подключится и будет готов к работе."""
+        try:
+            # Сначала ждем базового подключения
+            await asyncio.wait_for(self._ws_ready.wait(), timeout=timeout)
+            
+            # Дополнительная проверка, что мы можем получать данные
+            start_time = time.time()
+            while time.time() - start_time < 2.0:
+                if self.connected and self._subscribed:
+                    return True
+                await asyncio.sleep(0.1)
+                
+            log.warning("WebSocket подключен, но еще не готов к работе")
+            return False
+        except asyncio.TimeoutError:
+            log.error("WebSocket не подключился за отведенное время")
+            return False
