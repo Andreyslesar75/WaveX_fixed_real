@@ -200,14 +200,14 @@ class Config:
     IMPULSE_WINDOW = 60
 
     # Минимальный размер импульса в процентах.
-    # [2026-09-06] user change: minimum valid impulse set to 6.5%, strong impulse set to 16%.
-    IMPULSE_MIN_PCT = 6.5
+    # [2026-09-09] user change: minimum valid impulse set to 7.5%, strong impulse set to 17%.
+    IMPULSE_MIN_PCT = 7.5
 
     # Максимальный возраст импульса в 1-минутных барах.
     IMPULSE_MAX_AGE_BARS = 40
 
     # Сильный импульс в процентах.
-    IMPULSE_STRONG_PCT = 16.0
+    IMPULSE_STRONG_PCT = 17.0
 
     # Максимальная длина импульса в барах.
     IMPULSE_MAX_BARS = 40
