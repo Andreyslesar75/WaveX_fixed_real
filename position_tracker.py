@@ -195,7 +195,17 @@ class PositionTracker:
                 f"{symbol}: полная стратегия, "
                 f"TP1_SIZE_FRAC={dynamic_tp1_frac:.2f}"
             )
-                
+
+        # [НОВОЕ] Вычисляем Iron SL — независимый контур защиты
+        # Отступ от обычного SL в "худшую" сторону
+        iron_buffer = Config.IRON_SL_BUFFER_PCT / 100.0
+        if side == "LONG":
+            # Для LONG Iron SL ниже обычного SL (дальше от входа)
+            pos["iron_sl_price"] = sl_price * (1 - iron_buffer)
+        else:
+            # Для SHORT Iron SL выше обычного SL
+            pos["iron_sl_price"] = sl_price * (1 + iron_buffer)
+        pos["iron_sl_triggered"] = False                
         
         self.positions[symbol] = pos
 
@@ -607,7 +617,35 @@ class PositionTracker:
         
         if not pos.get("tp2_done", False) and tp2_condition:
             return await self._close_position(symbol, price, "TP2")
-        
+
+
+        # ================================================================
+        # 4.5. IRON STOP-LOSS (независимый контур защиты)
+        # ================================================================
+        iron_sl_price = pos.get("iron_sl_price", 0.0)
+        if iron_sl_price > 0 and not pos.get("iron_sl_triggered", False):
+            iron_condition = (
+                (is_short and price >= iron_sl_price)
+                or (not is_short and price <= iron_sl_price)
+            )
+            if iron_condition:
+                log.error(
+                    f"⚠️ IRON SL СРАБОТАЛ {symbol} [{side}] "
+                    f"price={fmt_price(price)} "
+                    f"iron_sl={fmt_price(iron_sl_price)} "
+                    f"обычный SL={fmt_price(pos['sl_price'])} "
+                    f"Штатный SL на бирже не сработал!"
+                )
+                pos["iron_sl_triggered"] = True
+                # Сохраняем флаг в БД для аудита
+                if self.db:
+                    try:
+                        self.db.save_open_position(pos)
+                    except Exception as e:
+                        log.error(f"{symbol}: ошибка сохранения iron_sl_triggered: {e}")
+                # Форс-закрытие с особой причиной
+                return await self._close_position(symbol, price, "IRON_SL")
+
         # ================================================================
         # 5. STOP LOSS
         # ================================================================
@@ -615,7 +653,6 @@ class PositionTracker:
             (is_short and price >= pos["sl_price"])
             or (not is_short and price <= pos["sl_price"])
         )
-        
         if sl_condition:
             # Определяем причину
             if pos.get("trail_active", False):
@@ -626,6 +663,7 @@ class PositionTracker:
                 sl_reason = "SL"
             
             return await self._close_position(symbol, price, sl_reason)
+        
         
         # ================================================================
         # 6. Обычный Breakeven (без TP1)
@@ -772,13 +810,19 @@ class PositionTracker:
                         log.error(f"{symbol}: ошибка удаления позиции из БД: {e}")
                 
                 # Определяем причину закрытия
+                # [ИСПРАВЛЕНО] Определяем причину закрытия
+                # Специальные причины (IRON_SL, TIMEOUT, VOL_DECAY, TP1, TP2, EXTERNAL_CLOSE)
+                # не перезаписываем — они важны для статистики и аудита.
+                # Перезапись нужна только для "сырого" SL, чтобы уточнить: был ли это трейлинг/BE.
                 original_reason = reason
-                if pos.get("trail_active", False):
-                    reason = "TRAIL_SL"
-                elif pos.get("breakeven_set", False):
-                    reason = "BE_SL"
-                else:
-                    reason = "SL"
+                SPECIAL_REASONS = {"IRON_SL", "TIMEOUT", "VOL_DECAY", "TP1", "TP2", "EXTERNAL_CLOSE", "FORCED"}
+                if reason not in SPECIAL_REASONS:
+                    if pos.get("trail_active", False):
+                        reason = "TRAIL_SL"
+                    elif pos.get("breakeven_set", False):
+                        reason = "BE_SL"
+                    else:
+                        reason = "SL"
                 
                 debug_log(f"[DEBUG-TRACKER] {symbol}: причина закрытия: {original_reason} -> {reason}")
                 
@@ -1179,7 +1223,6 @@ class PositionTracker:
 
     async def handle_order_update(self, symbol: str, order_id: str, client_order_id: str, status: str, filled_qty: float):
         """
-        [НОВОЕ]
         Обрабатывает обновление ордера из User Data Stream.
         Вызывается напрямую из ws_client при получении ORDER_TRADE_UPDATE.
         """
@@ -1189,39 +1232,46 @@ class PositionTracker:
             return
         
         # Проверяем, является ли это SL/TP ордером
-        is_sl = (pos.get("sl_order_id") == order_id or 
-                pos.get("sl_client_id") == client_order_id)
-        is_tp = (pos.get("tp_order_id") == order_id or 
-                pos.get("tp_client_id") == client_order_id)
+        is_sl = (pos.get("sl_order_id") == order_id or
+                 pos.get("sl_client_id") == client_order_id)
+        is_tp = (pos.get("tp_order_id") == order_id or
+                 pos.get("tp_client_id") == client_order_id)
         
         # Обработка статусов
         if status == "FILLED":
             log.info(f"{symbol}: ордер {order_id} полностью исполнен")
-            
             if is_sl:
-                log.info(f"{symbol}: SL сработал, закрываем позицию")
-                # Вызываем обработку SL
+                log.info(f"{symbol}: SL сработал (через WS), закрываем позицию")
                 await self._close_position(symbol, pos["sl_price"], "SL")
-            
             elif is_tp:
-                log.info(f"{symbol}: TP сработал")
+                log.info(f"{symbol}: TP сработал (через WS)")
                 # Проверяем, какой TP (TP1 или TP2)
                 if pos.get("tp1_done", False):
-                    # Это TP2
+                    # Это TP2 — полное закрытие
                     await self._close_position(symbol, pos["tp2_price"], "TP2")
                 else:
-                    # Это TP1
-                    await self._handle_tp1_fill(symbol, filled_qty)
+                    # Это TP1 — но TP1 обрабатывается через position_watcher
+                    # (там есть логика частичного закрытия, пересчёт TP2, breakeven)
+                    # WS-событие просто логируем, position_watcher подхватит
+                    log.info(
+                        f"{symbol}: TP1 исполнен на бирже. "
+                        f"position_watcher обработает логику (пересчёт TP2, breakeven)."
+                    )
+        
+        elif status == "PARTIALLY_FILLED":
+            # [НОВОЕ] Частичное исполнение — логируем, ждём полного
+            log.debug(
+                f"{symbol}: ордер {order_id} частично исполнен "
+                f"(filled={filled_qty}). Ждём полного исполнения."
+            )
+            # position_watcher каждые 2 сек увидит изменение qty через REST
         
         elif status == "CANCELED":
             log.info(f"{symbol}: ордер {order_id} отменен")
-            
-            # Если это был SL, возможно, нужно восстановить
+            # Если это был SL, запускаем аварийную ветку
             if is_sl:
                 log.warning(f"{symbol}: SL отменен, запускаем аварийную ветку")
                 await self._emergency_restore_sl(symbol, pos)
-            
-            # Если это был TP, возможно, нужно восстановить
             elif is_tp:
                 log.warning(f"{symbol}: TP отменен, запускаем восстановление")
-                # Здесь можно добавить логику восстановления TP
+                # TP восстанавливается через position_watcher при следующей проверке

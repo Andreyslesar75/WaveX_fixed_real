@@ -170,6 +170,7 @@ class Database:
             ("side", "TEXT DEFAULT 'LONG'"),
             ("mfe", "REAL DEFAULT 0.0"),
             ("mae", "REAL DEFAULT 0.0"),
+            ("iron_sl_triggered", "INTEGER DEFAULT 0"),
         ]
 
         with self._lock:
