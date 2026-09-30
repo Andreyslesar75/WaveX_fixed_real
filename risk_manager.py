@@ -302,6 +302,20 @@ class PositionManager:
     # ================================================================
     async def update_positions(self, prices: Dict[str, float]):
         async with self._update_lock:
+            # [НОВОЕ П2] Забираем события закрытий, инициированных через WS
+            # (tracker.handle_order_update). Обрабатываются тем же
+            # _handle_position_event, что и REST-события: log_trade,
+            # кулдауны SL, дневной лимит убытка, equity — консистентны.
+            # Порядок: сначала WS-события (они случились раньше по времени),
+            # затем свежие события из update_prices().
+            while self.tracker.ws_pending_events:
+                ws_event: dict = self.tracker.ws_pending_events.pop(0)
+                debug_log(
+                    f"[DEBUG-RISK] WS-событие: "
+                    f"{ws_event.get('symbol')} reason={ws_event.get('reason')}"
+                )
+                await self._handle_position_event(ws_event)
+
             events = await self.tracker.update_prices(prices)
             debug_log(f"[DEBUG-RISK] update_positions: received {len(events)} events")
             # [НОВОЕ] Проверяем, изменился ли SL у открытых позиций

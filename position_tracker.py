@@ -50,6 +50,14 @@ class PositionTracker:
         self.positions: Dict[str, dict] = {}
         # Шаги трейлинга из config
         self.trail_steps = sorted(Config.TRAILING_STEPS.keys())
+        # [НОВОЕ П2] Очередь событий закрытия, инициированных через WS.
+        # handle_order_update() не может обработать событие сам: весь учёт сделок
+        # (log_trade, кулдауны, дневной лимит, equity) живёт в risk_manager.
+        # Отдавать события напрямую из WS-контекста нельзя — это обошло бы
+        # _update_lock и внесло гонки. Поэтому: складываем сюда, а risk_manager
+        # забирает очередь в update_positions() — тот же путь обработки,
+        # что и у REST-событий, только источник другой.
+        self.ws_pending_events: List[dict] = []
     
     # ================================================================
     # ОТКРЫТИЕ ПОЗИЦИИ
@@ -1221,7 +1229,19 @@ class PositionTracker:
             return True
         return False
 
-    async def handle_order_update(self, symbol: str, order_id: str, client_order_id: str, status: str, filled_qty: float):
+    def _queue_ws_close_event(self, event: Optional[dict]) -> None:
+        """
+        [НОВОЕ П2] Кладёт событие закрытия из WS-пути в очередь
+        для последующей обработки risk_manager'ом.
+
+        event=None (закрытие не состоялось: флаг closing, qty=0,
+        неудача close) просто игнорируется — в REST-пути такие
+        случаи тоже не порождают событий.
+        """
+        if event is not None:
+            self.ws_pending_events.append(event)
+
+    async def handle_order_update(self, symbol: str, order_id: Optional[int], client_order_id: str, status: str, filled_qty: float):
         """
         Обрабатывает обновление ордера из User Data Stream.
         Вызывается напрямую из ws_client при получении ORDER_TRADE_UPDATE.
@@ -1242,17 +1262,25 @@ class PositionTracker:
             log.info(f"{symbol}: ордер {order_id} полностью исполнен")
             if is_sl:
                 log.info(f"{symbol}: SL сработал (через WS), закрываем позицию")
-                await self._close_position(symbol, pos["sl_price"], "SL")
+                # [ИСПРАВЛЕНО П2] было: await self._close_position(...) — событие
+                # выбрасывалось, сделка выпадала из статистики/кулдаунов/дневного
+                # лимита. Теперь событие уходит в очередь risk_manager'а.
+                event: Optional[dict] = await self._close_position(
+                    symbol, pos["sl_price"], "SL",
+                )
+                self._queue_ws_close_event(event)
             elif is_tp:
                 log.info(f"{symbol}: TP сработал (через WS)")
-                # Проверяем, какой TP (TP1 или TP2)
                 if pos.get("tp1_done", False):
                     # Это TP2 — полное закрытие
-                    await self._close_position(symbol, pos["tp2_price"], "TP2")
+                    # [ИСПРАВЛЕНО П2] аналогично: событие в очередь, не в никуда
+                    event = await self._close_position(
+                        symbol, pos["tp2_price"], "TP2",
+                    )
+                    self._queue_ws_close_event(event)
                 else:
-                    # Это TP1 — но TP1 обрабатывается через position_watcher
-                    # (там есть логика частичного закрытия, пересчёт TP2, breakeven)
-                    # WS-событие просто логируем, position_watcher подхватит
+                    # TP1 — без изменений: по дизайну обрабатывает position_watcher
+                    # (частичное закрытие, пересчёт TP2, breakeven)
                     log.info(
                         f"{symbol}: TP1 исполнен на бирже. "
                         f"position_watcher обработает логику (пересчёт TP2, breakeven)."

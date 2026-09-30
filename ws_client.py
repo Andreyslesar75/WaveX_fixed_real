@@ -568,6 +568,11 @@ class BinanceWsClient:
                     log.info("User Data Stream: подключен")
                     self._user_data_connected = True
                     while not self._stop_flag[0]:
+                        # [НОВОЕ П2] Раньше ЛЮБАЯ ошибка обработки одного сообщения
+                        # (битый JSON, исключение в _handle_user_data) рвала весь стрим:
+                        # 5с простой + реконнект + потеря событий за окно. После Варианта 2
+                        # обработчик стал «толстым» (REST-вызовы внутри _close_position),
+                        # поэтому устойчивость стрима обязательна.
                         try:
                             msg = await asyncio.wait_for(ws.receive(), timeout=60.0)
                             if msg.type == aiohttp.WSMsgType.TEXT:
@@ -577,10 +582,20 @@ class BinanceWsClient:
                                               aiohttp.WSMsgType.CLOSING,
                                               aiohttp.WSMsgType.ERROR):
                                 break
+                        except asyncio.CancelledError:
+                            # Отмена задачи — штатное завершение, пробрасываем
+                            raise
                         except asyncio.TimeoutError:
                             if time.time() - self._last_user_data_time > 120:
                                 log.warning("User Data Stream: тишина > 120с, реконнект")
                                 break
+                        except Exception as e:
+                            # Сообщение пропускаем, стрим НЕ разрываем.
+                            # Транспортные ошибки (обрыв соединения) по-прежнему
+                            # уходят в реконнект через внешний except.
+                            log.error(
+                                f"User Data Stream: ошибка обработки сообщения: {e}"
+                            )
                     self._user_data_connected = False
                     await asyncio.sleep(2)
             except Exception as e:

@@ -1121,6 +1121,44 @@ class BinanceFuturesRestClient:
 
         return initial_order
 
+    def _validate_order_side(
+        self,
+        params: Dict[str, Any],
+        expected_side: str,
+    ) -> bool:
+        """
+        [НОВОЕ — защита от класса бага П1]
+
+        Последний барьер перед отправкой market-ордера на биржу:
+        убеждаемся, что params["side"] соответствует ожидаемому
+        направлению сделки (BUY = LONG, SELL = SHORT).
+
+        Причина появления: retry-блок place_market_sell_open() при -1013
+        пересобирал ордер с side="BUY" вместо "SELL". Binance исполняет
+        такой ордер БЕЗ ошибок — вместо SHORT открывался LONG. Ошибки
+        в symbol/quantity биржа отклоняет сама (ордер не исполнится),
+        а вот «валидный, но чужой по направлению» ордер исполняется
+        без вопросов — именно этот случай перехватываем.
+
+        Возвращает:
+            True  — side совпадает, ордер можно отправлять;
+            False — side НЕ совпадает, отправка ЗАПРЕЩЕНА.
+                    Вызывающий код обязан вернуть None и НЕ открывать
+                    позицию (отказ безопаснее позиции не в ту сторону).
+        """
+        actual_side: str = str(params.get("side", "")).upper()
+        expected_side = expected_side.upper()
+
+        if actual_side != expected_side:
+            log.error(
+                f"ЗАБЛОКИРОВАН ордер {params.get('symbol')}: "
+                f"side={actual_side!r}, ожидался {expected_side!r}. "
+                f"Отправка отменена, позиция НЕ открывается. params={params}"
+            )
+            return False
+
+        return True
+
     # ================================================================
     # ОТКРЫТИЕ ПОЗИЦИЙ
     # ================================================================
@@ -1191,6 +1229,11 @@ class BinanceFuturesRestClient:
         # [НОВОЕ] Retry при -1013 Filter failure
         resp = None
         for attempt in range(2):
+            # [НОВОЕ — защита П1] барьер перед КАЖДОЙ отправкой (включая retry):
+            # направление ордера проверяется до реального POST на биржу
+            if not self._validate_order_side(params, "BUY"):
+                return None
+            
             try:
                 resp = await self._request(
                     "POST", "/fapi/v1/order", params=params,
@@ -1300,6 +1343,11 @@ class BinanceFuturesRestClient:
         # [НОВОЕ] Retry при -1013 Filter failure
         resp = None
         for attempt in range(2):
+             # [НОВОЕ — защита П1] барьер перед КАЖДОЙ отправкой (включая retry):
+            # направление ордера проверяется до реального POST на биржу
+            if not self._validate_order_side(params, "SELL"):
+                return None
+            
             try:
                 resp = await self._request(
                     "POST", "/fapi/v1/order", params=params,
@@ -1328,7 +1376,7 @@ class BinanceFuturesRestClient:
                     # Новый client_order_id для повторной попытки
                     client_order_id = f"wavex{uuid.uuid4().hex[:20]}"
                     params = {
-                        "symbol": bsym, "side": "BUY", "type": "MARKET",
+                        "symbol": bsym, "side": "SELL", "type": "MARKET",
                         "quantity": qty, "newClientOrderId": client_order_id,
                     }
                 else:
