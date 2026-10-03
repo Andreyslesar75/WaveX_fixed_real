@@ -1,0 +1,1 @@
+"""Реализация ExecutionVenue поверх Binance USDⓈ-M Futures (REST + WS)."""
