@@ -38,7 +38,9 @@ class Config:
     # False = реальный Binance Futures
     # True  = тестовый Binance Futures testnet
     # [НЕ МЕНЯЙ] пока не знаешь, что делаешь.
-    BINANCE_TESTNET = False
+    # BINANCE_TESTNET = False
+    # Testnet включается ТОЛЬКО явно из .env (BINANCE_TESTNET=true).
+    BINANCE_TESTNET = os.getenv("BINANCE_TESTNET", "false").lower() == "true"
 
     # Адрес REST API Binance Futures
     BINANCE_BASE = (
@@ -65,7 +67,10 @@ class Config:
     # REAL_TRADING берётся из .env
     # false = бумажный режим, сделки виртуальные
     # true  = реальные деньги
-    REAL_TRADING = True
+    REAL_TRADING = False
+    # Реальная торговля — ТОЛЬКО явным флагом в .env (REAL_TRADING=true).
+    # Дефолт false: безопасный режим после любого чистого запуска.
+    # REAL_TRADING = os.getenv("REAL_TRADING", "false").lower() == "true"
 
     # Стартовый баланс для бумажного режима.
     # [МОЖНО МЕНЯТЬ] например 500, 1000, 2000.
@@ -523,3 +528,15 @@ class Config:
     # Включать только при отладке проблем.
     # [МОЖНО МЕНЯТЬ]
     DEBUG_LOGS_ENABLED = True
+
+    # ================================================================
+    # 19. ТОРГОВАЯ ЧАСТЬ v2 (trading/)
+    # ================================================================
+    # Фиксированный размер позиции (замена ручного 20.0 в старом risk_manager).
+    FIXED_POSITION_SIZE_USDT = 20.0
+    # Сопровождение SL: "program" (SL статичен на бирже, трейлинг локально —
+    # режим для нестабильной сети) | "exchange" (трейлинг двигает биржевой SL;
+    # на проде требует ALLOW_EXCH_SL=true в окружении).
+    SL_MAINTENANCE = "program"
+    # Новая БД торговой части (старая wavex.db — архив, не читается).
+    DB_FILE_V2 = os.path.join(BASE_DIR, "wavex_v2.db")

@@ -459,69 +459,69 @@ class _Empty:  # pragma: no cover - технический
 
 
 class StorageReader:
-    """Читатель для GUI-потока: своё соединение, без writer-методов.
+    """Читатель для GUI-потока: свежее соединение на каждый вызов.
 
-    Создавать и использовать в ОДНОМ потоке (GUI). WAL даёт
-    консистентные снимки без блокировки writer.
+    Почему per-call: фасад используется из GUI-потока и из потока бота
+    (get_stats в цикле сканера) — постоянное соединение нарушало бы
+    check_same_thread. Запросы редкие (обновление GUI раз в 2 с),
+    стоимость connect+SELECT пренебрежима.
     """
 
     def __init__(self, path: Path) -> None:
         self._path = path
-        self._conn: sqlite3.Connection | None = None
 
-    def _c(self) -> sqlite3.Connection:
-        """Lazy-соединение в потоке первого вызова."""
-        if self._conn is None:
-            self._conn = sqlite3.connect(self._path)
-            self._conn.execute("PRAGMA journal_mode=WAL")
-        return self._conn
+    def _query(self, sql: str, params: tuple = ()) -> list[tuple]:
+        """SELECT через одноразовое соединение (WAL — неблокирующе для writer)."""
+        conn = sqlite3.connect(self._path)
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            return conn.execute(sql, params).fetchall()
+        finally:
+            conn.close()
 
-    def close(self) -> None:
-        """Закрыть соединение (idempotent)."""
-        if self._conn is not None:
-            self._conn.close()
-            self._conn = None
+    def get_trades(self, limit: int = 100) -> list[dict[str, Any]]:
+        """Последние сделки в форме ключей старого GUI/CSV.
 
-    def get_trades(self, limit: int = 200) -> list[dict[str, Any]]:
-        """Последние trades в форме ключей старого GUI (ISO-времена)."""
-        rows = self._c().execute(
-            "SELECT symbol, side, entry_ts, exit_ts, entry_price, exit_price,"
-            " net_pnl, pnl_pct, exit_reason, tp1_done FROM trades"
-            " ORDER BY exit_ts DESC LIMIT ?", (limit,),
-        ).fetchall()
-        # score достаём из signals по signal_id не стали — GUI-совместимость
-        # обеспечивается фасадом (Часть 4); здесь сырьё
+        Ключи (сверено по gui.py): entry_time/exit_time (ISO), timestamp
+        (CSV-экспорт), symbol, side, entry_price, exit_price, pnl_usdt,
+        pnl_pct, exit_reason, score.
+        """
+        rows = self._query(
+            "SELECT t.symbol, t.side, t.entry_ts, t.exit_ts, t.entry_price,"
+            " t.exit_price, t.net_pnl, t.pnl_pct, t.exit_reason, s.score"
+            " FROM trades t JOIN signals s ON s.id = t.signal_id"
+            " ORDER BY t.exit_ts DESC LIMIT ?",
+            (limit,),
+        )
         return [
             {
                 "symbol": r[0], "side": r[1],
                 "entry_time": _iso(r[2]), "exit_time": _iso(r[3]),
+                "timestamp": _iso(r[3]),
                 "entry_price": float(r[4]), "exit_price": float(r[5]),
                 "pnl_usdt": float(r[6]), "pnl_pct": r[7],
-                "exit_reason": r[8], "tp1_done": bool(r[9]),
+                "exit_reason": r[8], "score": r[9],
             }
             for r in rows
         ]
 
     def get_win_rate(self) -> tuple[float, int, int, int]:
         """(win_rate%, total, wins, losses) по net_pnl."""
-        rows = self._c().execute(
-            "SELECT net_pnl FROM trades"
-        ).fetchall()
-        total = len(rows)
+        rows = self._query("SELECT net_pnl FROM trades")
         wins = sum(1 for r in rows if Decimal(r[0]) > 0)
-        losses = total - wins
+        total = len(rows)
         wr = (wins / total * 100.0) if total else 0.0
-        return wr, total, wins, losses
+        return wr, total, wins, total - wins
 
     def get_max_drawdown(self) -> float:
-        """Макс. просадка кривой equity (по total_equity, %)."""
-        rows = self._c().execute(
+        """Макс. просадка кривой total_equity, %."""
+        rows = self._query(
             "SELECT total_equity FROM equity ORDER BY ts_ms"
-        ).fetchall()
+        )
         if not rows:
             return 0.0
+        peak = max_dd = 0.0
         peak = float(rows[0][0])
-        max_dd = 0.0
         for r in rows:
             value = float(r[0])
             peak = max(peak, value)
@@ -530,9 +530,9 @@ class StorageReader:
         return max_dd
 
     def get_equity_series(self, limit: int = 1000) -> list[tuple[int, float]]:
-        """Кривая эквити (ts_ms, total) — для GUI-графика."""
-        rows = self._c().execute(
-            "SELECT ts_ms, total_equity FROM equity ORDER BY ts_ms DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        """Кривая эквити (ts_ms, total) для графиков."""
+        rows = self._query(
+            "SELECT ts_ms, total_equity FROM equity"
+            " ORDER BY ts_ms DESC LIMIT ?", (limit,)
+        )
         return [(r[0], float(r[1])) for r in reversed(rows)]

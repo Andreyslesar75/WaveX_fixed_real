@@ -44,7 +44,7 @@ import numpy as np
 from api import BinanceFuturesRestClient
 from config import Config
 from logger import log, parse_klines, ema, play_sound
-from risk_manager import PositionManager
+from trading import build_position_manager  # PositionManager-совместимый фасад
 
 from signals import (
     check_not_freefall,
@@ -156,24 +156,22 @@ class WaveXScanner:
             raise
         self.rest_client.filters_cache.start_background_updater()
         
-        # 2. Создание клиентов (строго в этом порядке!)
-        self.pos_manager = PositionManager(self.rest_client, Config.REAL_TRADING)
+        # 2. Market-WebSocket (микроструктура для анализа — без изменений)
         self.ws_client = BinanceWsClient(rest_client=self.rest_client, session=self.session)
-        
-        # 3. Передача трекера в WS для обработки ORDER_TRADE_UPDATE
-        self.ws_client.set_tracker(self.pos_manager.tracker)
 
-        # 4. Запуск WebSocket (ОДИН раз)
+        # 3. Торговая часть v2: фасад + движок (user-stream теперь внутри)
+        self.pos_manager = await build_position_manager(
+            session=self.session,
+            klines_provider=(
+                lambda sym, interval, limit: self.rest_client.get_klines(sym, interval, limit)
+            ),
+        )
+
+        # 4. Запуск WebSocket рынка (ОДИН раз)
         ws_task = asyncio.create_task(self.ws_client.run(self.session, self._stop_flag))
         self._tasks.append(ws_task)
 
-        # 5. Запуск User Data Stream
-        if Config.REAL_TRADING:
-            user_data_ok = await self.ws_client.start_user_data_stream()
-            if not user_data_ok:
-                log.warning("User Data Stream не запустился. Бот продолжит работу через REST-опрос.")
-
-        # 6. Ожидание готовности WS
+        # 5. Ожидание готовности WS
         log.info("Ждем подключения WebSocket...")
         try:
             await asyncio.wait_for(self.ws_client.wait_until_ready(), timeout=10.0)
@@ -181,29 +179,25 @@ class WaveXScanner:
         except Exception:
             log.warning("WS не готов, продолжаем с ограниченной функциональностью")
 
-        # 7. Включаем торговлю по умолчанию (reconciliation при необходимости выключит её)
+        # 6. Старт торговой части: стартовая сверка + задачи движка.
+        #    Паритет старого шага 8: провал сверки = торговля выключена,
+        #    мониторинг позиций продолжается.
         self.trading_enabled[0] = True
+        started_ok = await self.pos_manager.start()
+        if not started_ok:
+            log.error("Reconciliation провалился — новые входы заблокированы")
+            self.trading_enabled[0] = False
+        else:
+            if self.pos_manager.positions:
+                open_symbols = list(self.pos_manager.positions.keys())
+                log.info(f"[WS] Подписываемся на {len(open_symbols)} восстановленных позиций")
+                await self.ws_client.subscribe(open_symbols)
 
-        # 8. Reconciliation
-        if Config.REAL_TRADING:
-            await self.pos_manager.refresh_balance()
-            try:
-                recon_ok = await self.pos_manager.reconcile()
-                if not recon_ok:
-                    log.error("Reconciliation провалился — бот не может безопасно торговать")
-                    self.trading_enabled[0] = False
-                else:
-                    if self.pos_manager.positions:
-                        open_symbols = list(self.pos_manager.positions.keys())
-                        log.info(f"[WS] Подписываемся на {len(open_symbols)} восстановленных позиций")
-                        await self.ws_client.subscribe(open_symbols)
-            except Exception as e:
-                log.error(f"Ошибка reconciliation: {e}")
-                self.trading_enabled[0] = False
-
-        # 9. Запуск position_watcher
-        watcher_task = asyncio.create_task(self.position_watcher())
-        self._tasks.append(watcher_task)
+        # 7. Итоговый лог
+        if self.trading_enabled[0]:
+            log.info("Торговля автоматически включена после инициализации")
+        else:
+            log.warning("Торговля отключена из-за ошибок инициализации")
 
         # 10. Итоговый лог
         if self.trading_enabled[0]:
@@ -275,56 +269,34 @@ class WaveXScanner:
     # ================================================================
 
     async def position_watcher(self):
-        """
-        Быстрый наблюдатель позиций.
+        """Ценовой насос: свежие цены открытых позиций -> движок.
 
-        Работает каждые POSITION_CHECK_INTERVAL секунд.
-
-        Его задача:
-        - получать свежую цену по открытым позициям;
-        - передавать цены в PositionManager;
-        - PositionManager проверяет SL, TP1, TP2, trailing, timeout.
+        Все решения (SL/TP/трейлинг/защита) принимает движок — здесь
+        только доставка цен (WS -> REST fallback), как в старом коде.
         """
         while not self._stop_flag[0]:
             t0 = time.time()
-
             try:
                 pm = self.pos_manager
-
                 if pm and pm.positions:
                     symbols = list(pm.positions.keys())
-
                     price_map: Dict[str, float] = {}
-
                     for symbol in symbols:
-                        # Сначала пробуем взять свежую цену из WebSocket.
                         price = await self.ws_client.get_last_price(
-                            symbol,
-                            max_age_sec=Config.POSITION_PRICE_MAX_AGE_SEC,
+                            symbol, max_age_sec=Config.POSITION_PRICE_MAX_AGE_SEC,
                         )
-
-                        # Если WebSocket-цена старая или отсутствует,
-                        # берём цену через REST.
                         if price is None:
                             price = await self.rest_client.get_last_price(symbol)
-
                         if price is not None and price > 0:
                             price_map[symbol] = price
-
                     if price_map:
                         await pm.update_positions(price_map)
-
             except asyncio.CancelledError:
                 break
-
             except Exception as e:
                 log.debug(f"position_watcher error: {e}")
-
             elapsed = time.time() - t0
-
-            await asyncio.sleep(
-                max(0.2, Config.POSITION_CHECK_INTERVAL - elapsed)
-            )
+            await asyncio.sleep(max(0.2, Config.POSITION_CHECK_INTERVAL - elapsed))
 
     # ================================================================
     # ОТКАЗ СИГНАЛА

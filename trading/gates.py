@@ -1,9 +1,12 @@
-# trading/gates.py
-"""Гейты входа (Д7): порядок фиксирован, первый провал = реджект.
+"""Гейты входа — порядок и строки причин 1:1 со старым risk_manager.open_position.
 
-Чистые функции над GateState — тестируются без движка. Причина
-провала возвращается точная (RejectReason) и пишется в signals
-(статистика причин реджектов — требование черновика §3).
+Сверено по реальному коду (Часть 4, §0). Ключевые точки паритета:
+- порядок: max_positions -> already_open -> short_disabled -> confidence
+  -> дневные лимиты -> score -> repeat -> gap -> SL-кулдаун (обход при
+  score >= STRONG_SCORE_FOR_REENTRY, repeat/gap НЕ обходятся) -> фильтры
+  -> размер/минимумы -> баланс (real, без буфера: bal < size);
+- gap-ветка присутствует, но GAP_SL никто не генерирует (и в старом коде
+  была мертва) — паритет сохранён, пробуждать не будем (REPORT).
 """
 from __future__ import annotations
 
@@ -18,37 +21,33 @@ from .types import RejectReason, Side, SignalInput, SymbolFilters
 
 @dataclass(slots=True)
 class GateState:
-    """Кулдауны/лимиты (in-memory; точные значения таймингов — settings).
-
-    Переживает только процесс: при рестарте дневной лимит
-    восстанавливается из БД (engine), кулдауны — сброс (стартовая
-    сверка их покрывает: позиция либо есть, либо нет).
-    """
+    """Кулдауны/лимиты (1:1 со словарями старого risk_manager)."""
 
     open_symbols: set[str] = field(default_factory=set)
-    last_exit_ts_ms: dict[str, int] = field(default_factory=dict)
-    last_sl_exit_ts_ms: dict[str, int] = field(default_factory=dict)
-    last_exit_price: dict[str, Decimal] = field(default_factory=dict)
+    cooldown_until_ms: dict[str, int] = field(default_factory=dict)      # _cooldown_until (SL)
+    repeat_block_until_ms: dict[str, int] = field(default_factory=dict)  # _repeat_block_until
+    gap_block_until_ms: dict[str, int] = field(default_factory=dict)     # _gap_block_until
+    stop_history_ms: dict[str, list[int]] = field(default_factory=dict)  # _stop_history
     today_trades: int = 0
     today_realized: Decimal = Decimal("0")
+    day_start_ms: int = 0
 
 
 @dataclass(frozen=True, slots=True)
 class GateOutcome:
-    """Результат прогонки гейтов: ok либо точная причина."""
+    """Результат гейтов: ok+qty либо точная причина (строка — в detail)."""
 
     ok: bool
     reason: RejectReason | None = None
     detail: str = ""
+    qty: Decimal | None = None
 
     @classmethod
-    def passed(cls) -> "GateOutcome":
-        """Успешное прохождение всех гейтов."""
-        return cls(ok=True)
+    def passed(cls, qty: Decimal) -> "GateOutcome":
+        return cls(ok=True, qty=qty)
 
     @classmethod
     def fail(cls, reason: RejectReason, detail: str = "") -> "GateOutcome":
-        """Провал с причиной (detail — человекочитаемый контекст)."""
         return cls(ok=False, reason=reason, detail=detail)
 
 
@@ -58,87 +57,77 @@ def check_gates(
     state: GateState,
     settings: EngineSettings,
     filters: SymbolFilters,
-    balance: Decimal | None,
+    balance: Decimal | None,   # None => пропуск балансового гейта (paper, паритет)
     now_ms: int,
 ) -> GateOutcome:
-    """Прогнать сигнал по гейтам Д7 в фиксированном порядке.
+    """Прогнать сигнал; первый провал = реджект с точной причиной."""
+    del levels  # геометрия уровней уже гарантируется fixup-блоком levels.py
+    sym = signal.symbol
 
-    Args:
-        signal: валидированный вход (types.SignalInput);
-        levels: рассчитанные SL/TP (до округления tick);
-        state: кулдауны/лимиты движка;
-        filters: фильтры символа из кэша;
-        balance: доступный баланс (None — проверка баланса пропущена,
-            её делает движок отдельно после этой функции).
-
-    Returns:
-        GateOutcome с точной RejectReason первого провала.
-    """
-    if signal.confidence == "SKIP":
-        return GateOutcome.fail(RejectReason.LOW_CONFIDENCE, "confidence=SKIP")
-    threshold = settings.adaptive.threshold(
+    if len(state.open_symbols) >= settings.max_open_positions:
+        return GateOutcome.fail(RejectReason.MAX_POSITIONS, "max_positions")
+    if sym in state.open_symbols:
+        return GateOutcome.fail(RejectReason.DUPLICATE, "already_open")
+    if signal.side is Side.SHORT and not settings.short_trading_enabled:
+        return GateOutcome.fail(RejectReason.SHORT_DISABLED, "short_disabled")
+    if signal.confidence not in ("HIGH", "MEDIUM"):
+        return GateOutcome.fail(
+            RejectReason.LOW_CONFIDENCE, f"low_conf_{signal.confidence}"
+        )
+    if settings.daily_max_trades > 0 and state.today_trades >= settings.daily_max_trades:
+        return GateOutcome.fail(
+            RejectReason.DAILY_LIMIT,
+            f"max_trades_per_day {state.today_trades}/{settings.daily_max_trades}",
+        )
+    if state.today_realized <= -settings.daily_max_loss_usdt:
+        return GateOutcome.fail(
+            RejectReason.DAILY_LIMIT,
+            f"daily_loss_limit {state.today_realized:.2f} "
+            f"<= {-settings.daily_max_loss_usdt:.1f}",
+        )
+    threshold = settings.adaptive_threshold(
         signal.side is Side.LONG, signal.btc_trend
     )
-    if signal.score < max(threshold, settings.min_score):
+    if signal.score < threshold:
         return GateOutcome.fail(
             RejectReason.SCORE_THRESHOLD,
-            f"score={signal.score:.2f} < threshold={threshold:.2f}",
+            f"score_{signal.score:.0f}<{threshold:.0f}",
         )
-    if signal.symbol in state.open_symbols:
-        return GateOutcome.fail(RejectReason.DUPLICATE, "позиция уже открыта")
-    # кулдауны
-    sl_until = state.last_sl_exit_ts_ms.get(signal.symbol)
-    if sl_until is not None and now_ms < sl_until + int(
-        settings.sl_cooldown_sec * 1000
-    ):
-        return GateOutcome.fail(RejectReason.COOLDOWN_SL, "после SL-выхода")
-    rep_until = state.last_exit_ts_ms.get(signal.symbol)
-    if rep_until is not None and now_ms < rep_until + int(
-        settings.repeat_cooldown_sec * 1000
-    ):
-        return GateOutcome.fail(RejectReason.COOLDOWN_REPEAT, "после выхода")
-    last_px = state.last_exit_price.get(signal.symbol)
-    if last_px is not None:
-        moved = abs(signal.price - last_px) / last_px * Decimal("100")
-        if moved >= Decimal(str(settings.gap_min_move_pct)) and now_ms < (
-            state.last_exit_ts_ms.get(signal.symbol, 0)
-            + int(settings.gap_cooldown_sec * 1000)
-        ):
-            return GateOutcome.fail(RejectReason.GAP_PROTECTION, "цена ушла от выхода")
-    # лимиты
-    if len(state.open_symbols) >= settings.max_open_positions:
-        return GateOutcome.fail(RejectReason.MAX_POSITIONS, "слишком много открытых")
-    if state.today_trades >= settings.daily_max_trades:
-        return GateOutcome.fail(RejectReason.DAILY_LIMIT, "лимит сделок за день")
-    if state.today_realized <= -settings.daily_max_loss_usdt:
-        return GateOutcome.fail(RejectReason.DAILY_LIMIT, "дневной убыток достигнут")
-    # фильтры символа
+    repeat_until = state.repeat_block_until_ms.get(sym, 0)
+    if now_ms < repeat_until:
+        return GateOutcome.fail(
+            RejectReason.COOLDOWN_REPEAT,
+            f"repeat_block_{int((repeat_until - now_ms) / 1000)}s",
+        )
+    gap_until = state.gap_block_until_ms.get(sym, 0)
+    if now_ms < gap_until:
+        return GateOutcome.fail(
+            RejectReason.GAP_PROTECTION,
+            f"gap_block_{int((gap_until - now_ms) / 1000)}s",
+        )
+    cooldown_until = state.cooldown_until_ms.get(sym, 0)
+    if now_ms < cooldown_until and signal.score < settings.strong_score_reentry:
+        return GateOutcome.fail(
+            RejectReason.COOLDOWN_SL,
+            f"blocked_until_{int((cooldown_until - now_ms) / 1000)}s",
+        )
     if not filters.is_trading:
         return GateOutcome.fail(RejectReason.SYMBOL_NOT_TRADING, filters.status)
-    # money-гейты (qty/минимумы) — до уровня
+    if settings.position_size_usdt < settings.min_position_size_usdt:
+        return GateOutcome.fail(
+            RejectReason.NOTIONAL_BELOW_MIN,
+            f"size_too_small ({settings.position_size_usdt:.2f} < min "
+            f"{settings.min_position_size_usdt:.2f})",
+        )
     qty, reason = compute_entry_qty(
         settings.position_size_usdt, signal.price, filters
     )
     if reason is not None:
-        return GateOutcome.fail(reason, "qty/notional")
-    # направления уровней (Этап A черновика §2)
-    if signal.side is Side.LONG:
-        if not (levels.sl_price < signal.price < levels.tp2_price):
-            return GateOutcome.fail(RejectReason.INVALID_LEVELS, "LONG: sl<p<tp нарушено")
-    else:
-        if not (levels.tp2_price < signal.price < levels.sl_price):
-            return GateOutcome.fail(RejectReason.INVALID_LEVELS, "SHORT: tp<p<sl нарушено")
-    # спред-гейт (опционален, [ТРЕБУЕТСЯ СВЕРКА])
-    if settings.max_spread_pct is not None and signal.spread_pct > settings.max_spread_pct:
-        return GateOutcome.fail(RejectReason.INVALID_SIGNAL, "spread слишком велик")
-    # баланс с буфером
-    if balance is not None:
-        need = settings.position_size_usdt * (
-            Decimal("1") + Decimal(str(settings.balance_buffer_pct)) / Decimal("100")
+        return GateOutcome.fail(
+            reason, f"size_too_small ({settings.position_size_usdt:.2f} < min "
+            f"{max(filters.min_notional, settings.min_position_size_usdt):.2f})"
+            if reason is RejectReason.NOTIONAL_BELOW_MIN else reason.value,
         )
-        if balance < need:
-            return GateOutcome.fail(
-                RejectReason.INSUFFICIENT_BALANCE,
-                f"balance={balance} < need~{need}",
-            )
-    return GateOutcome.passed()
+    if balance is not None and balance < settings.position_size_usdt:
+        return GateOutcome.fail(RejectReason.INSUFFICIENT_BALANCE, "insufficient_balance")
+    return GateOutcome.passed(qty)

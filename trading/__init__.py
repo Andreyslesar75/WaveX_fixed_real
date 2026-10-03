@@ -1,11 +1,5 @@
-"""Торговая часть WaveX v2 (real + paper).
+"""Торговая часть WaveX v2 (real + paper). См. trading/bootstrap.py."""
+from .bootstrap import build_position_manager
+from .facade import PositionManager
 
-Заменяет: risk_manager.py, position_tracker.py, position_manager.py,
-exchange_adapter.py, reconciliation.py, order-часть api.py.
-
-Не входит (граница компетенции): signals.py, анализ scanner.py,
-calculations.py, gui.py — вызываются/читаются, но не изменяются.
-
-Требования окружения: Python >= 3.10, pydantic >= 2.6.
-"""
-
+__all__ = ["PositionManager", "build_position_manager"]

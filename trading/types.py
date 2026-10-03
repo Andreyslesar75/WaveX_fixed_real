@@ -153,6 +153,7 @@ class RejectReason(str, Enum):
     LOW_CONFIDENCE = "low_confidence"
     SCORE_THRESHOLD = "score_threshold"
     DUPLICATE = "duplicate"
+    SHORT_DISABLED = "short_disabled"
     COOLDOWN_SL = "cooldown_sl"
     COOLDOWN_REPEAT = "cooldown_repeat"
     GAP_PROTECTION = "gap_protection"
