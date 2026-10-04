@@ -10,3 +10,10 @@ python-dotenv>=1.0.0
 
 # Числовые расчёты: ATR, EMA, свечи и т.д.
 numpy>=1.26.0
+
+python-dotenv
+mypy>=1.9
+ruff
+pytest
+pytest-asyncio
+pydantic>=2.6

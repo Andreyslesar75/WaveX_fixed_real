@@ -15,6 +15,7 @@ import asyncio
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -42,13 +43,12 @@ async def main() -> None:
         sys.exit("Ключи не заданы")
 
     session = aiohttp.ClientSession()
-    clock_ms = int(asyncio.get_event_loop().time() * 1000)
+    
 
     class _Clock:
         def now_ms(self) -> int:
             return int(time.time() * 1000)
 
-    import time  # noqa: E402
     rest = BinanceRestClient(
         transport=AioHttpTransport(session), api_key=key, secret_key=secret,
         base_url=BASE, limiter=RateLimiter(), clock=_Clock(),

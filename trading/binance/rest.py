@@ -29,7 +29,7 @@ import time
 from decimal import Decimal
 from typing import Any, Mapping, Protocol
 from urllib.parse import urlencode
-
+from ..clock import TimeProvider
 from ..ratelimit import RateLimiter
 from ..venue import InsufficientFundsError, UnknownOrderError
 
@@ -118,6 +118,7 @@ class AioHttpTransport:
     def __init__(self, session: Any) -> None:
         """session — aiohttp.ClientSession (Any: aiohttp не типизирован для strict)."""
         self._session = session
+        self.last_headers: dict[str, str] = {}
 
     async def request(
         self, method: HttpMethod, url: str,
@@ -133,6 +134,7 @@ class AioHttpTransport:
             ) as resp:
                 status = resp.status
                 hdrs = dict(resp.headers.items())
+                self.last_headers = hdrs
                 body = await resp.text()
         except TimeoutError as exc:
             raise TransportTimeout(str(exc)) from exc
@@ -159,7 +161,7 @@ class BinanceRestClient:
         secret_key: str,
         base_url: str,
         limiter: RateLimiter,
-        clock: Any,  # trading.clock.Clock; Any чтобы не тянуть цикл импортов — см. note
+        clock: TimeProvider,  # trading.clock.Clock; Any чтобы не тянуть цикл импортов — см. note
         recv_window_ms: int = 5000,
         request_timeout_s: float = 10.0,
         get_retries: int = 2,

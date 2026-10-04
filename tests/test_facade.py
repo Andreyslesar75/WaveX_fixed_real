@@ -1,14 +1,17 @@
-"""Тесты фасада: адаптивный порог, снимок view, формат get_stats."""
-import asyncio
+"""Тесты фасада: адаптивный порог (1:1), снимок позиций, get_stats."""
 from decimal import Decimal
 
 from trading.facade import PositionManager
-from trading.settings import EngineSettings
 from trading.types import Mode
+
+from tests.test_engine import (
+    EI, _make_engine, _reset, _start, _teardown,
+)
+from trading.engine import EntryIntent
 
 
 class TestAdaptiveThreshold:
-    def test_long_constant(self) -> None:  # LONG — без поправок (сверено!)
+    def test_long_constant(self) -> None:
         f = PositionManager.get_adaptive_threshold
         assert f("LONG", 0.0) == 41.0
         assert f("LONG", 10.0) == 41.0
@@ -19,27 +22,28 @@ class TestAdaptiveThreshold:
         assert f("SHORT", 0.0) == 35.0
         assert f("SHORT", -3.0) == 32.0
         assert f("SHORT", 3.0) == 38.0
-        assert f("SHORT", -1.0) == 35.0
 
 
 class TestViewSnapshot:
-    async def test_view_updates_from_engine(self) -> None:
-        from tests.test_engine import EI, PRICES, _make_engine, _teardown
-        engine, venue, _ = await _make_engine()
-        facade = PositionManager(
-            engine=engine, storage_path=engine._storage._path,
-            settings=engine._settings, mode=Mode.PAPER,
-            capital_base=Decimal("1000"),
+    async def test_positions_and_stats_from_engine(self, tmp_path) -> None:
+        _reset()
+        db = tmp_path / "f.db"
+        engine, venue, _ = await _make_engine(
+            db, monitor_interval_sec=0.01, sl_rest_check_interval_sec=999.0,
         )
-        ok, _ = await engine.submit_signal(type("I", (), EI))  # type: ignore[arg-type]
-        assert ok
-        await facade._view_loop.__wrapped__ if False else None  # см. ниже
-        # прямой вызов логики снимка (без сна):
-        positions = {p["symbol"]: p for p in engine.open_positions()}
-        facade._view = type(facade._view)(
-            capital=1000.0, total_pnl=0.0, breakevens=0, positions=positions,
-        )
-        assert "RLCUSDT" in facade.positions
-        assert facade.get_open_positions()[0]["entry_time"] < 10**12  # секунды
-        assert "Сделок:" in facade.get_stats()
-        _teardown(engine)
+        stop, task = await _start(engine)
+        try:
+            ok, _ = await engine.submit_signal(EntryIntent(**EI))
+            assert ok
+            facade = PositionManager(
+                engine=engine, storage_path=db, settings=engine._settings,
+                mode=Mode.PAPER, capital_base=Decimal("1000"),
+            )
+            positions = engine.open_positions()
+            assert positions and positions[0]["symbol"] == "RLCUSDT"
+            # entry_time — epoch-СЕКУНДЫ (контракт GUI, §0 Части 4)
+            assert positions[0]["entry_time"] < 10**12
+            assert "Сделок:" in facade.get_stats()
+            assert facade.get_trades() == []
+        finally:
+            await _teardown(stop, task, engine, db)

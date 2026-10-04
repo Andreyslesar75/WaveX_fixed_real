@@ -30,6 +30,7 @@ from .ratelimit import RateLimiter
 from .settings import EngineSettings
 from .storage import Storage
 from .types import Mode
+from .venue import VenueEvent
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,7 @@ async def build_position_manager(
 
     filters = FiltersCache(public_fetch)  # сигнатура JsonFetcher: (path, params)
 
-    events: asyncio.Queue = asyncio.Queue()
+    events: "asyncio.Queue[VenueEvent]" = asyncio.Queue()
 
     if real:
         limiter = RateLimiter(
@@ -167,7 +168,7 @@ async def build_position_manager(
         attempts=int(getattr(cfg, "FILTERS_CACHE_INIT_RETRIES", 3)),
         backoff_start_s=0.5,
     )
-    asyncio.get_running_loop().create_task = asyncio.ensure_future  # noqa — заглушка линтера
+    
     # фоновое обновление фильтров + user stream (real)
     stop_holder: dict[str, asyncio.Event] = {"stop": asyncio.Event()}
 
@@ -190,5 +191,5 @@ async def build_position_manager(
         engine=engine, storage_path=db_path, settings=settings,
         mode=mode, capital_base=capital_base,
     )
-    facade._bootstrap_tasks = bg  # type: ignore[attr-defined] — отменяются в close
+    facade._bootstrap_tasks = bg
     return facade

@@ -63,6 +63,7 @@ class PositionManager:
         )
         self._stop = asyncio.Event()
         self._tasks: list[asyncio.Task[None]] = []
+        self._bootstrap_tasks: list[asyncio.Task[None]] = []  # наполняет bootstrap
 
     # ---------------- жизненный цикл ----------------
 

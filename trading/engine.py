@@ -29,10 +29,10 @@ from .manage import (
     breakeven_price, check_position, improves, profit_pct, update_mfe_mae,
 )
 from .money import (
-    compute_entry_qty, floor_to_step, round_price_tick, to_api_str,
+    compute_entry_qty, floor_to_step, round_price_tick,
 )
 from .notifier import Notifier
-from .protection import iron_triggered, restore_stop_market, sl_health
+from .protection import iron_triggered, restore_stop_market
 from .reconcile import Reconciler
 from .settings import EngineSettings
 from .storage import OrderRow, Storage, StoredPosition, TradeRecord
@@ -73,6 +73,7 @@ class TrackedOrder:
     client_order_id: str
     role: str  # ENTRY/SL/TP1/TP2/RS/FC/MC
     symbol: str
+    side: OrderSide
     state: OrderState
     row_id: int
     qty: Decimal | None
@@ -297,6 +298,7 @@ class TradingEngine:
             )
             entry_cid = make_client_id(sid, "in")
             sl_price = round_price_tick(levels.sl_price, intent.side, filters.tick_size)
+            tp1_price = round_price_tick(levels.tp1_price, intent.side, filters.tick_size)
             tp2_price = round_price_tick(levels.tp2_price, intent.side, filters.tick_size)
             entry_req = OrderRequest(
                 client_order_id=entry_cid, symbol=intent.symbol,
@@ -304,7 +306,7 @@ class TradingEngine:
                 signal_id=sid,
             )
             ack = await self._venue.execute_order(entry_req)
-            self._track_new_order(entry_cid, "ENTRY", intent.symbol, qty, ack, entry_cid)
+            self._track_new_order(entry_req, "ENTRY", ack, entry_cid)
             if ack.status not in (OrderState.FILLED, OrderState.PARTIALLY_FILLED):
                 await self._handle_entry_failure(intent, sid, ack)
                 return False, f"order_failed: {ack.status.value}"
@@ -315,7 +317,7 @@ class TradingEngine:
                 entry_ts_ms=now, entry_price=avg, qty=executed,
                 size_usdt=self._settings.position_size_usdt, score=intent.score,
                 sl_price=sl_price, local_sl_price=sl_price,
-                tp1_price=levels.tp1_price, tp2_price=tp2_price,
+                tp1_price=tp1_price, tp2_price=tp2_price,
                 iron_sl_price=self._iron_price(sl_price, intent.side, filters),
                 sl_client_id=None, tp1_client_id=None, tp2_client_id=None,
                 entry_client_id=entry_cid,
@@ -350,6 +352,9 @@ class TradingEngine:
         await stop.wait()
         for task in self._tasks:
             task.cancel()
+        # дождаться фактического завершения (тесты/рестарт без «зависших» задач)
+        await asyncio.gather(*self._tasks, return_exceptions=True)
+
 
     async def _consume_loop(self) -> None:
         """Единственный потребитель событий venue (анти-П2)."""
@@ -492,6 +497,11 @@ class TradingEngine:
             if tracked.role == "ENTRY":
                 if ev.avg_price:
                     pos.entry_price = ev.avg_price  # точная цена вместо ack
+                if (
+                    ev.commission is not None
+                    and (ev.commission_asset or "USDT") == "USDT"
+                ):
+                    pos.fees_usdt += ev.commission  # комиссия входа — в PnL сделки
             elif tracked.role in ("SL", "RS"):
                 if symbol in self._closing:
                     return  # наша ветка закрытия уже владеет позицией
@@ -559,14 +569,17 @@ class TradingEngine:
                 f"entry {tracked.client_order_id} исполнен без позиции — "
                 f"аварийное закрытие qty={ev.last_filled_qty}",
             )
+            # сторона выхода = противоположна входу (SHORT-баг, найден аудитом Ч.5)
+            exit_side = (
+                Side.LONG if tracked.side is OrderSide.BUY else Side.SHORT
+            ).order_side_exit
             close_req = OrderRequest(
                 client_order_id=tracked.client_order_id + "-fc",
-                symbol=tracked.symbol, side=OrderSide.SELL
-                if tracked.qty else OrderSide.SELL,
-                kind=OrderKind.MARKET, qty=ev.last_filled_qty or tracked.qty,
+                symbol=tracked.symbol, side=exit_side,
+                kind=OrderKind.MARKET,
+                qty=ev.last_filled_qty or tracked.qty,
                 reduce_only=True,
             )
-            await self._venue.execute_order(close_req)
         else:
             self._incident(
                 IncidentType.UNKNOWN_ORDER_STATUS, tracked.symbol, "warning",
@@ -578,39 +591,53 @@ class TradingEngine:
     # ----------------------------------------------------------------
 
     async def _part_a(self, symbol: str, pos: ManagedPosition, now: int) -> None:
-        """Часть A: SL (и обязательные TP) подтверждены активными?
+        """Часть A (§11): SL подтверждён активным? Нет -> Часть B.
 
-        Источники: локальная книга + периодический REST-контроль
-        (SL_REST_CHECK_INTERVAL_SEC на символ).
+        Два независимых источника вердикта:
+        - событийный: tracked.state из книги (CANCELED/FILLED/REJECTED
+          подтверждены событием биржи);
+        - REST-контроль (не чаще sl_rest_check_interval_sec): успешный
+          openOrders АВТОРИТЕТЕН — SL cid отсутствует = SL не активен,
+          даже если книга ещё считает его NEW (событие могло не долететь;
+          «исполнился или пропал» различает Часть B).
+        Ошибка REST -> вердикт по книге (аварию из-за сети не поднимаем).
         """
         sl_cid = pos.sl_client_id
         if sl_cid is None:
             await self._part_b(symbol, pos, now)
             return
         tracked = self._orders.get(sl_cid)
-        health = sl_health(None, tracked.state if tracked else None)
+        missing_by_events = tracked is None or tracked.state in (
+            OrderState.CANCELED, OrderState.FILLED, OrderState.REJECTED,
+        )
         last = self._last_rest_check.get(symbol, 0)
-
         if (now - last) >= int(self._settings.sl_rest_check_interval_sec * 1000):
             try:
                 acks = await self._venue.open_orders(symbol)
             except Exception as exc:
                 logger.warning("engine: REST-контроль %s не удался: %s", symbol, exc)
-                return
-            self._last_rest_check[symbol] = now
-            by_cid = {a.client_order_id: a for a in acks}
-            sl_ack = by_cid.get(sl_cid)
-            health = sl_health(sl_ack, tracked.state if tracked else None)
-            # попутно — точечная синхронизация статусов TP
-            for cid in (pos.tp1_client_id, pos.tp2_client_id):
-                if cid and cid in by_cid:
-                    t = self._orders.get(cid)
-                    if t and t.state is not by_cid[cid].status:
-                        t.state = by_cid[cid].status
+                acks = None
+            if acks is not None:
+                self._last_rest_check[symbol] = now
+                by_cid = {a.client_order_id: a for a in acks}
+                for cid in (pos.tp1_client_id, pos.tp2_client_id):
+                    if cid and cid in by_cid:
+                        t = self._orders.get(cid)
+                        if t and t.state is not by_cid[cid].status:
+                            t.state = by_cid[cid].status
+                            self._storage.update_order_status(t.row_id, t.state.value)
+                sl_ack = by_cid.get(sl_cid)
+                if sl_ack is not None:
+                    if tracked is not None and tracked.state is not sl_ack.status:
+                        tracked.state = sl_ack.status
                         self._storage.update_order_status(
-                            t.row_id, t.state.value
+                            tracked.row_id, sl_ack.status.value
                         )
-        if health is not None and health.name == "MISSING":
+                    if sl_ack.status in (OrderState.NEW, OrderState.PARTIALLY_FILLED):
+                        return  # SL подтверждён биржей — штатно
+                await self._part_b(symbol, pos, now)  # SL нет в openOrders
+                return
+        if missing_by_events:
             await self._part_b(symbol, pos, now)
 
     async def _part_b(self, symbol: str, pos: ManagedPosition, now: int) -> None:
@@ -669,8 +696,7 @@ class TradingEngine:
             self._settings.sl_restore_interval_sec,
         )
         if result.ok and result.ack is not None:
-            self._track_new_order(restore_cid, "RS", symbol, None, result.ack,
-                                  pos.entry_client_id)
+            self._track_new_order(req, "RS", result.ack, pos.entry_client_id)
             pos.sl_client_id = restore_cid
             pos.unprotected = False
             self._persist_position(pos, self._now_ms())
@@ -728,10 +754,7 @@ class TradingEngine:
                     qty=pos.qty, reduce_only=True, signal_id=pos.signal_id,
                 )
                 ack = await self._venue.execute_order(req)
-                self._track_new_order(
-                    fc_cid, "FC" if reason is ExitReason.FORCED else "MC",
-                    symbol, pos.qty, ack, pos.entry_client_id,
-                )
+                self._track_new_order(req, "FC" if reason is ExitReason.FORCED else "MC", ack, pos.entry_client_id)
                 if ack.status is OrderState.FILLED and ack.avg_price:
                     await self._close_by_event(
                         pos, reason, ack.avg_price, self._now_ms(), None
@@ -878,8 +901,7 @@ class TradingEngine:
             signal_id=sid, position_ref=pos.entry_client_id,
         )
         sl_ack = await self._venue.execute_order(sl_req)
-        self._track_new_order(sl_cid, "SL", pos.symbol, None, sl_ack,
-                              pos.entry_client_id)
+        self._track_new_order(sl_req, "SL", sl_ack, pos.entry_client_id)
         if sl_ack.status not in (OrderState.NEW, OrderState.PARTIALLY_FILLED):
             self._incident(IncidentType.SL_LOST, pos.symbol, "critical",
                             f"SL не встал: {dict(sl_ack.raw)}")
@@ -930,8 +952,7 @@ class TradingEngine:
                 price_protect=True, signal_id=sid,
             )
             tp1_ack = await self._venue.execute_order(tp1_req)
-            self._track_new_order(tp1_cid, "TP1", pos.symbol, tp1_qty, tp1_ack,
-                                  pos.entry_client_id)
+            self._track_new_order(tp1_req, "TP1", tp1_ack, pos.entry_client_id)
             if tp1_ack.status is OrderState.NEW:
                 pos.tp1_client_id = tp1_cid
             else:
@@ -950,8 +971,7 @@ class TradingEngine:
             price_protect=True, signal_id=sid,
         )
         tp2_ack = await self._venue.execute_order(tp2_req)
-        self._track_new_order(tp2_cid, "TP2", pos.symbol, tp2_qty, tp2_ack,
-                              pos.entry_client_id)
+        self._track_new_order(tp2_req, "TP2", tp2_ack, pos.entry_client_id)
         if tp2_ack.status is OrderState.NEW:
             pos.tp2_client_id = tp2_cid
         else:
@@ -974,27 +994,31 @@ class TradingEngine:
         # _on_fill_without_position закроет его аварийно
 
     def _track_new_order(
-        self, cid: str, role: str, symbol: str, qty: Decimal | None,
-        ack: Any, position_ref: str,
+        self, request: OrderRequest, role: str, ack: OrderAck,
+        position_ref: str,
     ) -> TrackedOrder:
-        """Зарегистрировать ордер в книге + БД (OrderRow)."""
+        """Зарегистрировать ордер: БД + книга; side/qty — из request
+        (единый источник параметров, анти-П1)."""
         row_id = self._storage.insert_order(OrderRow(
-            ts_ms=self._now_ms(), mode=self._mode, symbol=symbol,
-            client_order_id=cid, exchange_order_id=ack.exchange_order_id,
-            side=ack.raw.get("side", "") if isinstance(ack.raw, Mapping) else "",
-            type=ack.raw.get("type", role) if isinstance(ack.raw, Mapping) else role,
-            role=role, qty=qty,
-            stop_price=None, reduce_only=False, close_position=False,
+            ts_ms=self._now_ms(), mode=self._mode, symbol=request.symbol,
+            client_order_id=request.client_order_id,
+            exchange_order_id=ack.exchange_order_id,
+            side=request.side.value, type=request.kind.value, role=role,
+            qty=request.qty, stop_price=request.stop_price,
+            reduce_only=request.reduce_only,
+            close_position=request.close_position,
             status=ack.status.value, position_ref=position_ref,
             raw_response=None,
         ))
         tracked = TrackedOrder(
-            client_order_id=cid, role=role, symbol=symbol,
-            state=ack.status, row_id=row_id, qty=qty,
+            client_order_id=request.client_order_id, role=role,
+            symbol=request.symbol, side=request.side,
+            state=ack.status, row_id=row_id, qty=request.qty,
             exchange_order_id=ack.exchange_order_id,
         )
-        self._orders[cid] = tracked
+        self._orders[request.client_order_id] = tracked
         return tracked
+
 
     def _persist_position(self, pos: ManagedPosition, now: int) -> None:
         """Снапшот в БД (dirty-check внутри storage — минимум записи)."""

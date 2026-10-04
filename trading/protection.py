@@ -14,7 +14,7 @@ import asyncio
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum, auto
-
+from .venue import ExecutionVenue
 from .types import OrderAck, OrderRequest, OrderState, PositionSnapshot, Side
 
 
@@ -68,7 +68,7 @@ class RestoreResult:
 
 
 async def restore_stop_market(
-    venue,  # ExecutionVenue (протокол; без импорта — цикл зависимостей)
+    venue: ExecutionVenue,  # ExecutionVenue (venue.py импортирует только types)
     request: OrderRequest,
     attempts: int,
     interval_s: float,

@@ -97,8 +97,11 @@ def check_position(
         return ManageAction(kind="close", exit_reason=ExitReason.VOL_DECAY,
                             detail=f"vol_ratio={volume_ratio:.2f}")
     pct = profit_pct(pos, price)
-    # 3) трейлинг (блокируется unprotected — движок не зовёт для unprotected)
+    # 3) трейлинг: активация ставит флаг ДАЖЕ если SL лестницы пока не
+    # улучшает текущий (1:1 position_tracker: после активации выход
+    # классифицируется TRAIL_SL, а не BE_SL)
     if pct >= Decimal(str(settings.trailing_activation_pct)):
+        pos.trail_active = True
         new_sl = trailing_sl(pct, pos.side, price, settings.trailing_steps)
         if improves(pos.side, new_sl, pos.local_sl_price):
             return ManageAction(kind="trail_move", new_local_sl=new_sl)

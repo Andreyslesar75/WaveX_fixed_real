@@ -12,9 +12,13 @@ import time
 from typing import Callable, Mapping
 
 from .types import JsonFetcher
+from typing import Protocol
 
 logger = logging.getLogger(__name__)
 
+class TimeProvider(Protocol):
+    """Минимальный контракт времени для подписанных запросов (rest)."""
+    def now_ms(self) -> int: ...
 
 class ClockError(RuntimeError):
     """serverTime невалиден — ошибка границы, не молчать."""

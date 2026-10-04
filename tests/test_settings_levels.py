@@ -1,37 +1,55 @@
-"""Тесты settings/levels: формулы порогов, калькулятор уровней."""
+"""Тесты settings/levels: adaptive_threshold 1:1, R-множители PercentCalc."""
 from decimal import Decimal
 
 from trading.levels import PercentLevelCalculator
-from trading.settings import AdaptiveThresholds, EngineSettings
+from trading.settings import EngineSettings
 from trading.types import Side
 
 
-class TestAdaptive:
-    def test_long_threshold_follows_trend(self) -> None:
-        a = AdaptiveThresholds()
-        base = a.base_long
-        assert a.threshold(True, 1.0) < base   # бычий тренд — вход легче
-        assert a.threshold(True, -1.0) > base  # медвежий — труднее
+class TestAdaptiveThreshold:
+    """Формула старого get_adaptive_threshold (сверено по коду)."""
 
-    def test_short_mirror(self) -> None:
-        a = AdaptiveThresholds()
-        assert a.threshold(False, 1.0) > a.base_short
-        assert a.threshold(False, -1.0) < a.base_short
+    def test_long_constant(self) -> None:
+        s = EngineSettings()
+        assert s.adaptive_threshold(True, 0.0) == 41.0
+        assert s.adaptive_threshold(True, 10.0) == 41.0
+        assert s.adaptive_threshold(True, -10.0) == 41.0
 
-    def test_adjust_capped(self) -> None:
-        a = AdaptiveThresholds(trend_adjust=100.0, trend_cap=2.0)
-        assert a.threshold(True, 10.0) == a.base_long - 2.0
+    def test_short_adjusts(self) -> None:
+        s = EngineSettings()
+        assert s.adaptive_threshold(False, 0.0) == 35.0
+        assert s.adaptive_threshold(False, -3.0) == 32.0
+        assert s.adaptive_threshold(False, 3.0) == 38.0
+
+    def test_short_boundaries_strict(self) -> None:
+        s = EngineSettings()
+        # ровно -2.0 — ещё НЕ «сильный нисходящий» (условие < -2)
+        assert s.adaptive_threshold(False, -2.0) == 35.0
+        assert s.adaptive_threshold(False, -2.01) == 32.0
+        assert s.adaptive_threshold(False, 2.0) == 35.0
 
 
 class TestPercentCalculator:
-    def test_long_levels(self) -> None:
-        calc = PercentLevelCalculator(Decimal("2"), Decimal("3"))
-        levels = calc.calculate(Decimal("100"), Side.LONG, 0, 0, None, None)
-        assert levels.sl_price == Decimal("98")
-        assert levels.tp2_price == Decimal("103")
+    """R-множители: tp1 = sl_pct*1.0, tp2 = sl_pct*1.1 (Config §11)."""
 
-    def test_short_levels(self) -> None:
-        calc = PercentLevelCalculator(Decimal("2"), Decimal("3"))
-        levels = calc.calculate(Decimal("100"), Side.SHORT, 0, 0, None, None)
-        assert levels.sl_price == Decimal("102")
-        assert levels.tp2_price == Decimal("97")
+    def test_long(self) -> None:
+        lv = PercentLevelCalculator(Decimal("2")).calculate(
+            Decimal("100"), Side.LONG, 0, 0, None, None,
+        )
+        assert lv.sl_price == Decimal("98")
+        assert lv.tp1_price == Decimal("102")
+        assert lv.tp2_price == Decimal("102.2")
+
+    def test_short_mirror(self) -> None:
+        lv = PercentLevelCalculator(Decimal("2")).calculate(
+            Decimal("100"), Side.SHORT, 0, 0, None, None,
+        )
+        assert lv.sl_price == Decimal("102")
+        assert lv.tp1_price == Decimal("98")
+        assert lv.tp2_price == Decimal("97.8")
+
+    def test_tp2_mult_param(self) -> None:
+        lv = PercentLevelCalculator(Decimal("2"), Decimal("3")).calculate(
+            Decimal("100"), Side.LONG, 0, 0, None, None,
+        )
+        assert lv.tp2_price == Decimal("106")
