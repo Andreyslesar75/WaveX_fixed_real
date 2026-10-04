@@ -6,9 +6,11 @@ from typing import Any
 import pytest
 
 from trading.binance.user_stream import (
-    UserStream, is_listen_key_expired, parse_stream_message,
+    UserStream,
+    is_listen_key_expired,
+    parse_stream_message,
 )
-from trading.venue import VenueAccountUpdate, VenueOrderUpdate, VenueReconnected
+from trading.venue import VenueAccountUpdate, VenueOrderUpdate
 
 
 class FakeApi:
@@ -103,7 +105,6 @@ class TestParsing:
 
 class TestStreamLifecycle:
     async def test_silence_causes_reconnect_with_event(self) -> None:
-        import trading.binance.user_stream as us
 
         api = FakeApi()
         factory = FakeFactory([

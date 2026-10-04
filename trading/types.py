@@ -20,9 +20,10 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Awaitable, Callable, Mapping
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Awaitable, Callable, Literal, Mapping
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -218,6 +219,8 @@ class SymbolFilters(BaseModel):
         """True, если символ допущен к торговле (гейт входа)."""
         return self.status == "TRADING"
 
+Confidence = Literal["HIGH", "MEDIUM", "LOW", "SKIP"]
+"""Метка уверенности сигнала (значения — из части решений)."""
 
 class SignalInput(BaseModel):
     """Валидированный входной сигнал от части решений.

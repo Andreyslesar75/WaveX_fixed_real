@@ -1,6 +1,7 @@
 # tests/test_filters.py
 """Тесты filters.py: парсинг exchangeInfo, retry-инициализация, точечный refresh."""
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 import pytest
 
@@ -14,9 +15,15 @@ def _symbol_entry(
         {"filterType": "PRICE_FILTER", "tickSize": "0.0001"},
     ]
     if market_lot:
-        filters.append({"filterType": "MARKET_LOT_SIZE", "stepSize": "0.1", "minQty": "0.1", "maxQty": "10000"})
+        filters.append({
+            "filterType": "MARKET_LOT_SIZE", "stepSize": "0.1",
+            "minQty": "0.1", "maxQty": "10000",
+        })
     else:
-        filters.append({"filterType": "LOT_SIZE", "stepSize": "0.2", "minQty": "0.2", "maxQty": "5000"})
+        filters.append({
+            "filterType": "LOT_SIZE", "stepSize": "0.2",
+            "minQty": "0.2", "maxQty": "5000",
+        })
     filters += [
         {"filterType": "MIN_NOTIONAL", "notional": "5"},
         {"filterType": "PRICE_PROTECT", "triggerProtect": "0.1"},

@@ -19,17 +19,23 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import dataclass, field
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, Callable, Mapping
+from typing import Any, cast
 
 from .gates import GateState, check_gates
-from .levels import CalculatedLevels, LevelCalculator
+from .levels import LevelCalculator
 from .manage import (
-    breakeven_price, check_position, improves, profit_pct, update_mfe_mae,
+    breakeven_price,
+    check_position,
+    improves,
+    profit_pct,
+    update_mfe_mae,
 )
 from .money import (
-    compute_entry_qty, floor_to_step, round_price_tick,
+    floor_to_step,
+    round_price_tick,
 )
 from .notifier import Notifier
 from .protection import iron_triggered, restore_stop_market
@@ -37,17 +43,36 @@ from .reconcile import Reconciler
 from .settings import EngineSettings
 from .storage import OrderRow, Storage, StoredPosition, TradeRecord
 from .types import (
-    ExitReason, Fill, IncidentType, Mode, OrderKind, OrderRequest,
-    OrderSide, OrderState, RejectReason, Side, SignalInput,
-    SymbolFilters, make_client_id,
+    Confidence,
+    ExitReason,
+    Fill,
+    IncidentType,
+    Mode,
+    OrderAck,
+    OrderKind,
+    OrderRequest,
+    OrderSide,
+    OrderState,
+    RejectReason,
+    Side,
+    SignalInput,
+    SymbolFilters,
+    make_client_id,
 )
 from .venue import (
-    ExchangePosition, ExecutionVenue, UnknownOrderError,
-    VenueAccountUpdate, VenueEvent, VenueOrderUpdate, VenueReconnected,
+    ExchangePosition,
+    ExecutionVenue,
+    UnknownOrderError,
+    VenueAccountUpdate,
+    VenueEvent,
+    VenueOrderUpdate,
+    VenueReconnected,
 )
 
 logger = logging.getLogger(__name__)
 
+#: Источник свечей для VOL_DECAY: (symbol, interval, limit) -> сырые klines.
+KlinesProvider = Callable[[str, str, int], Awaitable[list[Any]]]
 
 @dataclass(slots=True)
 class EntryIntent:
@@ -150,7 +175,7 @@ class TradingEngine:
         capital_base: Decimal,
         now_ms: Callable[[], int] | None = None,
         recon_interval_min: float | None = None,
-        volume_provider=None,  # Callable[[str, str, int], Awaitable[list]] | None
+        volume_provider: KlinesProvider | None = None,
     ) -> None:
         """capital_base: real — wallet на старте; paper — STARTING_CAPITAL.
 
@@ -262,7 +287,8 @@ class TradingEngine:
         try:
             signal = SignalInput(
                 symbol=intent.symbol, side=intent.side, price=intent.price,
-                score=intent.score, confidence=intent.confidence,
+                score=intent.score,
+                confidence=cast(Confidence, intent.confidence),
                 spread_pct=intent.spread_pct, btc_trend=intent.btc_trend,
                 high24=intent.high24, low24=intent.low24,
                 structural_level=intent.structural_level,
@@ -394,8 +420,8 @@ class TradingEngine:
         """Монитор каждые settings.monitor_interval_sec (единственный — анти-П3)."""
         while True:
             await asyncio.sleep(self._settings.monitor_interval_sec)
-            self._roll_daily(now)
             now = self._now_ms()
+            self._roll_daily(now)
             for symbol in list(self._positions):
                 pos = self._positions.get(symbol)
                 if pos is None or symbol in self._closing:
@@ -580,6 +606,10 @@ class TradingEngine:
                 qty=ev.last_filled_qty or tracked.qty,
                 reduce_only=True,
             )
+            # [ИСПРАВЛЕНО] вызов был утерян при применении Е24: ордер
+            # создавался, но НЕ отправлялся — аварийная ветка не закрывала
+            # позицию. Поймано ruff (F841), в REPORT.
+            await self._venue.execute_order(close_req)
         else:
             self._incident(
                 IncidentType.UNKNOWN_ORDER_STATUS, tracked.symbol, "warning",
@@ -754,7 +784,8 @@ class TradingEngine:
                     qty=pos.qty, reduce_only=True, signal_id=pos.signal_id,
                 )
                 ack = await self._venue.execute_order(req)
-                self._track_new_order(req, "FC" if reason is ExitReason.FORCED else "MC", ack, pos.entry_client_id)
+                role = "FC" if reason is ExitReason.FORCED else "MC"
+                self._track_new_order(req, role, ack, pos.entry_client_id)
                 if ack.status is OrderState.FILLED and ack.avg_price:
                     await self._close_by_event(
                         pos, reason, ack.avg_price, self._now_ms(), None
@@ -783,8 +814,8 @@ class TradingEngine:
     ) -> None:
         """Фиксация закрытия в книгах (по факту исполнения — истина).
 
-        Требует удержанного лока. Вызывается из: consumer (SL/TP2/FC
-        events), _close_position_locked (наш market ack).
+        Требует удержанного лока. qty сделки = исполненный объём входа
+        (частичные TP не теряются). Кулдауны/лимиты — 1:1 (Е7).
         """
         symbol = pos.symbol
         if symbol not in self._positions:
@@ -801,18 +832,6 @@ class TradingEngine:
         pnl_pct = float(net) / size_f * 100.0 if size_f else 0.0
         mfe = float(profit_pct(pos, pos.mfe_price)) if pos.mfe_price else 0.0
         mae = float(profit_pct(pos, pos.mae_price)) if pos.mae_price else 0.0
-        rec = TradeRecord(
-            signal_id=pos.signal_id, symbol=symbol, side=pos.side.value,
-            entry_ts=pos.entry_ts_ms, exit_ts=exit_ts,
-            entry_price=pos.entry_price, exit_price=exit_price,
-            qty=pos.qty + (Decimal("0") if not pos.tp1_done else Decimal("0")),
-            gross_pnl=gross, fees=fees, net_pnl=net, pnl_pct=pnl_pct,
-            exit_reason=reason.value, mfe=mfe, mae=mae,
-            sl_pct=pos.sl_pct, tp_pct=pos.tp_pct,
-            tp1_done=pos.tp1_done, tp2_done=reason is ExitReason.TP2,
-            breakeven_done=pos.breakeven_done,
-        )
-        # qty сделки = исполненный объём входа (частичные TP не теряются)
         entry_tracked = self._orders.get(pos.entry_client_id)
         rec_qty = (
             entry_tracked.filled_qty
@@ -832,9 +851,9 @@ class TradingEngine:
         self._storage.insert_trade(rec)
         self._storage.delete_position(symbol)
         del self._positions[symbol]
-        self._gate_state.open_symbols.discard(symbol)
-        now = self._now_ms()
         state = self._gate_state
+        state.open_symbols.discard(symbol)
+        now = self._now_ms()
         if reason is ExitReason.SL:
             until = now + int(self._settings.sl_cooldown_sec * 1000)
             state.cooldown_until_ms[symbol] = max(
@@ -848,7 +867,7 @@ class TradingEngine:
                     state.repeat_block_until_ms.get(symbol, 0),
                     now + int(self._settings.repeat_block_sec * 1000),
                 )
-        elif reason is ExitReason.GAP_SL:  # ветка спит (как в старом коде, §0-7)
+        elif reason is ExitReason.GAP_SL:  # ветка спит (паритет, §0-7)
             state.gap_block_until_ms[symbol] = max(
                 state.gap_block_until_ms.get(symbol, 0),
                 now + int(self._settings.gap_block_sec * 1000),
@@ -860,8 +879,7 @@ class TradingEngine:
         if abs(net) < Decimal("0.005"):
             self._breakevens += 1  # паритет: старый считал pnl==0 события
         state.today_trades += 1
-        self._realized_total += net
-        self._gate_state.today_realized += net
+        state.today_realized += net
         self._realized_total += net
         self._write_equity("close", symbol, now)
         logger.info(
@@ -1060,7 +1078,11 @@ class TradingEngine:
                 self._write_equity("delta", None, now)
 
     def _sync_daily_counters(self) -> None:
-        """Восстановить дневной лимит из БД (локальная полночь, как старый datetime.now().date())."""
+        """Восстановить дневной лимит из БД.
+
+        Граница суток — локальная полночь (паритет со старым
+        datetime.now().date()).
+        """
         day_start = self._local_day_start_ms(self._now_ms())
         self._gate_state.day_start_ms = day_start
         self._gate_state.today_trades = self._storage.today_trades_count(day_start)
@@ -1276,7 +1298,7 @@ class TradingEngine:
             self._breakevens += 1  # паритет: старый считал pnl==0 события
         state.today_trades += 1
         self._realized_total += net
-        
+
         self._write_equity("close", symbol, now)
         logger.info(
             "engine: dead-close %s reason=%s exit=%s net=%s (%s)",

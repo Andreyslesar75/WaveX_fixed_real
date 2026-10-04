@@ -7,11 +7,14 @@ import pytest
 from trading.binance.rest import OrderNotFoundError
 from trading.paper.venue import PaperVenue
 from trading.types import (
-    OrderKind, OrderRequest, OrderSide, OrderState,
+    OrderKind,
+    OrderRequest,
+    OrderSide,
+    OrderState,
 )
 from trading.venue import (
-    InsufficientFundsError, UnknownOrderError, VenueAccountUpdate,
-    VenueOrderUpdate,
+    InsufficientFundsError,
+    UnknownOrderError,
 )
 
 PRICES = {"RLCUSDT": Decimal("0.32")}

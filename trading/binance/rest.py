@@ -26,14 +26,16 @@ import hashlib
 import hmac
 import logging
 import time
+from collections.abc import Mapping
 from decimal import Decimal
-from typing import Any, Mapping, Protocol
+from typing import Any, Protocol
 from urllib.parse import urlencode
+
+from aiohttp import ClientTimeout
+
 from ..clock import TimeProvider
 from ..ratelimit import RateLimiter
 from ..venue import InsufficientFundsError, UnknownOrderError
-
-from aiohttp import ClientTimeout
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +132,7 @@ class AioHttpTransport:
         try:
             async with self._session.request(
                 method, url, headers=dict(headers),
-                timeout=ClientTimeout(total=timeout_s)           #timeout=type("T", (), {"total": timeout_s})(),  # aiohttp.ClientTimeout
+                timeout=ClientTimeout(total=timeout_s),
             ) as resp:
                 status = resp.status
                 hdrs = dict(resp.headers.items())
@@ -190,14 +192,17 @@ class BinanceRestClient:
         """GET без подписи, без внутреннего ретрая.
 
         Ретраи здесь не нужны: FiltersCache.initialize реализует свой
-        retry+backoff, Clock — свой. Двойной ретрай маскировал бы политику.
+        retry+backoff, Clock — свой.
         """
+        weight = (
+            WEIGHT_EXCHANGE_INFO
+            if path.endswith("exchangeInfo")
+            else WEIGHT_SERVER_TIME
+        )
         return await self._call(
             "GET", path, dict(params) if params else None,
-            signed=False, weight=WEIGHT_EXCHANGE_INFO if path.endswith("exchangeInfo") else WEIGHT_SERVER_TIME,
-            order_action=False, retries=0,
+            signed=False, weight=weight, order_action=False, retries=0,
         )
-
     # ---------- typed API ----------
 
     async def exchange_info(self, symbol: str | None = None) -> Any:

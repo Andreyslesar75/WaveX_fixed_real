@@ -1,20 +1,41 @@
+# trading/manage.py
 """Программные ветки сопровождения — семантика 1:1 с position_tracker
 (сверено по коду, Часть 4 §0): BE (2 пути, буфер 0.15%, только улучшение),
 лестница трейлинга TRAILING_STEPS, локальный SL-выход с классификацией
 TRAIL_SL/BE_SL, TIMEOUT, VOL_DECAY (после 60 мин удержания).
 
+Типизация: функции принимают PositionLike — структурный Protocol.
+Номинальные типы позиций (ManagedPosition движка и PositionSnapshot
+из тестов) наследованием не связаны, поэтому контракт — Protocol.
 TP1/TP2 — биржевые ордера (Д8-v2), здесь не проверяются.
-Классификация причин на закрытии — как в старом _close_position:
-trail_active -> TRAIL_SL; breakeven -> BE_SL; иначе SL (биржевой путь).
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Mapping
+from typing import Protocol
 
 from .settings import EngineSettings
-from .types import ExitReason, PositionSnapshot, Side
+from .types import ExitReason, Side
+
+
+class PositionLike(Protocol):
+    """Минимальный контракт позиции для сопровождения.
+
+    Подходит ManagedPosition (движок) и PositionSnapshot (тесты):
+    mypy проверяет структурно, тесты гоняют то же поведение.
+    """
+
+    side: Side
+    entry_ts_ms: int
+    entry_price: Decimal
+    sl_price: Decimal
+    local_sl_price: Decimal
+    trail_active: bool
+    breakeven_done: bool
+    mfe_price: Decimal | None
+    mae_price: Decimal | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,7 +48,7 @@ class ManageAction:
     detail: str = ""
 
 
-def profit_pct(pos: PositionSnapshot, price: Decimal) -> Decimal:
+def profit_pct(pos: PositionLike, price: Decimal) -> Decimal:
     """Прибыль позиции в % (по направлению)."""
     if pos.side is Side.LONG:
         return (price - pos.entry_price) / pos.entry_price * Decimal("100")
@@ -45,7 +66,7 @@ def trailing_sl(
     profit: Decimal, side: Side, price: Decimal,
     steps: Mapping[int, float],
 ) -> Decimal:
-    """SL по лестнице: ступень = максимальный ключ ≤ profit (1:1 _calc_trailing_sl)."""
+    """SL по лестнице: ступень = максимальный ключ ≤ profit (1:1)."""
     step_key = min(steps) if steps else 0
     for key in sorted(steps):
         if profit >= Decimal(str(key)):
@@ -63,7 +84,7 @@ def improves(side: Side, candidate: Decimal, current: Decimal) -> bool:
     return candidate < current
 
 
-def update_mfe_mae(pos: PositionSnapshot, price: Decimal) -> None:
+def update_mfe_mae(pos: PositionLike, price: Decimal) -> None:
     """Экстремумы (mutate позиции движка — под локом монитора)."""
     if pos.mfe_price is None or price > pos.mfe_price:
         pos.mfe_price = price
@@ -72,7 +93,7 @@ def update_mfe_mae(pos: PositionSnapshot, price: Decimal) -> None:
 
 
 def check_position(
-    pos: PositionSnapshot,
+    pos: PositionLike,
     price: Decimal,
     now_ms: int,
     settings: EngineSettings,

@@ -21,8 +21,9 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from decimal import Decimal
-from typing import Any, Mapping
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
@@ -95,7 +96,10 @@ class ExecutionVenue(ABC):
     у paper — триггер условных ордеров.
     """
 
-    events: "asyncio.Queue[VenueEvent]"
+    @property
+    @abstractmethod
+    def events(self) -> asyncio.Queue[VenueEvent]:
+        """Очередь событий venue (реал — user stream, paper — генерация)."""
 
     @abstractmethod
     async def execute_order(self, request: OrderRequest) -> OrderAck:

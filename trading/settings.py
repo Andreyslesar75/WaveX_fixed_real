@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -81,10 +82,10 @@ class EngineSettings(BaseModel):
         return self.score_threshold_short
 
     @classmethod
-    def from_config(cls, cfg: object) -> "EngineSettings":
+    def from_config(cls, cfg: object) -> EngineSettings:
         """Собрать настройки из Config по именам атрибутов (getattr —
         конфиг может не иметь новых ключей; дефолты уже = значениям Config)."""
-        def g(name: str, default: object) -> object:
+        def g(name: str, default: Any) -> Any:
             return getattr(cfg, name, default)
 
         return cls(

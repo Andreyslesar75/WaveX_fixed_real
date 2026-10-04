@@ -25,8 +25,8 @@ import aiohttp
 from trading.binance.rest import AioHttpTransport, BinanceRestClient
 from trading.ratelimit import RateLimiter
 
-BASE = os.getenv("SETUP_TESTNET", "false").lower() == "true" and \
-    "https://testnet.binancefuture.com" or "https://fapi.binance.com"
+BASE = (os.getenv("SETUP_TESTNET", "false").lower() == "true" and \
+    "https://testnet.binancefuture.com") or "https://fapi.binance.com"
 
 
 async def main() -> None:
@@ -43,7 +43,7 @@ async def main() -> None:
         sys.exit("Ключи не заданы")
 
     session = aiohttp.ClientSession()
-    
+
 
     class _Clock:
         def now_ms(self) -> int:

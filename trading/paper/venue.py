@@ -27,19 +27,30 @@ from __future__ import annotations
 import asyncio
 import itertools
 import logging
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from decimal import Decimal
-from typing import Callable, Mapping
 
+from ..binance.rest import OrderNotFoundError
 from ..types import (
-    Fill, OrderAck, OrderKind, OrderRequest, OrderSide, OrderState,
+    Fill,
+    OrderAck,
+    OrderKind,
+    OrderRequest,
+    OrderSide,
+    OrderState,
+    OrderUpdateEvent,
     Side,
 )
 from ..venue import (
-    ExchangePosition, ExecutionVenue, InsufficientFundsError,
-    UnknownOrderError, VenueAccountUpdate, VenueEvent, VenueOrderUpdate,
+    ExchangePosition,
+    ExecutionVenue,
+    InsufficientFundsError,
+    UnknownOrderError,
+    VenueAccountUpdate,
+    VenueEvent,
+    VenueOrderUpdate,
 )
-from ..binance.rest import OrderNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +112,7 @@ class PaperVenue(ExecutionVenue):
         self._events: asyncio.Queue[VenueEvent] = asyncio.Queue()
 
     @property
-    def events(self) -> "asyncio.Queue[VenueEvent]":
+    def events(self) -> asyncio.Queue[VenueEvent]:
         """Очередь событий — движок потребляет её как у RealVenue."""
         return self._events
 
@@ -258,8 +269,11 @@ class PaperVenue(ExecutionVenue):
         price = self._price_provider(request.symbol)
         if price is None:
             return self._reject(request, "-1002", "paper: нет live-цены")
+        if request.qty is None:  # инвариант OrderRequest: MARKET всегда с qty
+            return self._reject(request, "-1102", "paper: MARKET без qty")
+        qty = request.qty
         fill_price = self._fill_price(request.side, price)
-        notional = request.qty * fill_price  # qty не None: инвариант OrderRequest
+        notional = qty * fill_price
         position = self._positions.get(request.symbol)
         closing = position is not None and (
             request.side.value != position.side.order_side_entry.value
@@ -267,30 +281,29 @@ class PaperVenue(ExecutionVenue):
         if request.reduce_only or closing:
             if position is None:
                 return self._reject(request, "-2022", "ReduceOnly: позиции нет")
-            if request.qty > position.qty:
+            if qty > position.qty:
                 return self._reject(request, "-2022", "ReduceOnly: qty > позиции")
-        else:
-            if notional > self._balance:
-                raise InsufficientFundsError(
-                    -2019, 200, "paper: insufficient balance",
-                    "/fapi/v1/order", None,
-                )
+        elif notional > self._balance:
+            raise InsufficientFundsError(
+                -2019, 200, "paper: insufficient balance",
+                "/fapi/v1/order", None,
+            )
         order = _PaperOrder(
             request=request, status=OrderState.FILLED,
             order_id=next(self._ids), ts_ms=self._now_ms(),
-            filled_qty=request.qty, avg_price=fill_price,
+            filled_qty=qty, avg_price=fill_price,
         )
         self._history[request.client_order_id] = order
         commission = notional * self._fee
-        realized = self._apply_fill(position, request, fill_price, request.qty)
+        realized = self._apply_fill(position, request, fill_price, qty)
         self._balance -= commission
         if realized is not None:
             self._balance += realized
-        self._emit_fill(order, fill_price, request.qty, commission)
+        self._emit_fill(order, fill_price, qty, commission)
         return OrderAck(
             client_order_id=request.client_order_id,
             exchange_order_id=order.order_id, status=OrderState.FILLED,
-            avg_price=fill_price, executed_qty=request.qty,
+            avg_price=fill_price, executed_qty=qty,
             raw={"paper": True, "commission": str(commission)},
         )
 
@@ -413,10 +426,8 @@ def _unrealized(position: _PaperPosition, price: Decimal | None) -> Decimal | No
 
 def _order_update_event(
     order: _PaperOrder, price: Decimal, qty: Decimal, commission: Decimal
-):
+) -> OrderUpdateEvent:
     """OrderUpdateEvent для события симулятора (формат — types.OrderUpdateEvent)."""
-    from ..types import OrderUpdateEvent  # локальный импорт: разрыв цикла типов
-
     return OrderUpdateEvent(
         ts_ms=order.ts_ms, symbol=order.request.symbol,
         client_order_id=order.request.client_order_id,

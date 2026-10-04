@@ -9,10 +9,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Callable, Mapping
+from collections.abc import Callable, Mapping
+from typing import Protocol
 
 from .types import JsonFetcher
-from typing import Protocol
 
 logger = logging.getLogger(__name__)
 

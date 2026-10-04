@@ -10,9 +10,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from collections.abc import Awaitable, Callable
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 import aiohttp
 
@@ -30,7 +31,7 @@ from .ratelimit import RateLimiter
 from .settings import EngineSettings
 from .storage import Storage
 from .types import Mode
-from .venue import VenueEvent
+from .venue import ExecutionVenue, VenueEvent
 
 logger = logging.getLogger(__name__)
 
@@ -122,8 +123,9 @@ async def build_position_manager(
 
     filters = FiltersCache(public_fetch)  # сигнатура JsonFetcher: (path, params)
 
-    events: "asyncio.Queue[VenueEvent]" = asyncio.Queue()
+    events: asyncio.Queue[VenueEvent] = asyncio.Queue()
 
+    venue: ExecutionVenue
     if real:
         limiter = RateLimiter(
             weight_per_min=6000 if testnet else 2400,
@@ -139,7 +141,7 @@ async def build_position_manager(
         user_stream = UserStream(
             api=rest,
             factory=_AioWsFactory(session),
-            ws_base="wss://stream.binancefuture.com" if testnet
+            ws_base_url="wss://stream.binancefuture.com" if testnet
             else "wss://fstream.binance.com",
             events=events,
         )
@@ -168,7 +170,7 @@ async def build_position_manager(
         attempts=int(getattr(cfg, "FILTERS_CACHE_INIT_RETRIES", 3)),
         backoff_start_s=0.5,
     )
-    
+
     # фоновое обновление фильтров + user stream (real)
     stop_holder: dict[str, asyncio.Event] = {"stop": asyncio.Event()}
 

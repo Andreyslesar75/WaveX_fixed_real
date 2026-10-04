@@ -1,13 +1,16 @@
 """Тесты фасада: адаптивный порог (1:1), снимок позиций, get_stats."""
 from decimal import Decimal
 
-from trading.facade import PositionManager
-from trading.types import Mode
-
 from tests.test_engine import (
-    EI, _make_engine, _reset, _start, _teardown,
+    EI,
+    _make_engine,
+    _reset,
+    _start,
+    _teardown,
 )
 from trading.engine import EntryIntent
+from trading.facade import PositionManager
+from trading.types import Mode
 
 
 class TestAdaptiveThreshold:
@@ -28,7 +31,7 @@ class TestViewSnapshot:
     async def test_positions_and_stats_from_engine(self, tmp_path) -> None:
         _reset()
         db = tmp_path / "f.db"
-        engine, venue, _ = await _make_engine(
+        engine, _venue, _ = await _make_engine(
             db, monitor_interval_sec=0.01, sl_rest_check_interval_sec=999.0,
         )
         stop, task = await _start(engine)

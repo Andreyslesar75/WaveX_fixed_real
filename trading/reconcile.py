@@ -14,9 +14,10 @@ import logging
 from decimal import Decimal
 from typing import Protocol
 
-from .storage import StoredPosition, Storage
+from .notifier import Notifier
+from .storage import Storage, StoredPosition
 from .types import ExitReason, Fill, Mode
-from .venue import ExecutionVenue, ExchangePosition
+from .venue import ExchangePosition, ExecutionVenue
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ class Reconciler:
 
     def __init__(
         self, venue: ExecutionVenue, storage: Storage, engine: EnginePort,
-        mode: Mode, notifier=None,
+        mode: Mode, notifier: Notifier | None = None,
     ) -> None:
         self._venue = venue
         self._storage = storage

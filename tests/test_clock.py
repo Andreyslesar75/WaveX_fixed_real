@@ -1,6 +1,7 @@
 # tests/test_clock.py
 """Тесты clock.py: offset с поправкой на RTT, валидация serverTime."""
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 import pytest
 

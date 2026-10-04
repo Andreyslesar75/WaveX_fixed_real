@@ -15,15 +15,19 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Mapping
 from decimal import Decimal
-from typing import Any, Mapping
+from typing import Any
 
 from ..money import to_api_str
 from ..types import Fill, OrderAck, OrderRequest, OrderState
-from ..venue import ExecutionVenue, ExchangePosition, VenueEvent
+from ..venue import ExchangePosition, ExecutionVenue, VenueEvent
 from .rest import (
-    BinanceApiError, BinanceRestClient, FilterFailureError,
-    InsufficientFundsError, OrderNotFoundError, TransportError,
+    BinanceApiError,
+    BinanceRestClient,
+    FilterFailureError,
+    OrderNotFoundError,
+    TransportError,
     TransportTimeout,
 )
 
@@ -66,7 +70,7 @@ class RealVenue(ExecutionVenue):
     def __init__(
         self,
         rest: BinanceRestClient,
-        events: "asyncio.Queue[VenueEvent]",
+        events: asyncio.Queue[VenueEvent],
         resolve_attempts: int = 10,
         resolve_interval_s: float = 0.3,
         not_found_confirm: int = 2,
@@ -79,7 +83,7 @@ class RealVenue(ExecutionVenue):
         self._not_found_confirm = not_found_confirm
 
     @property
-    def events(self) -> "asyncio.Queue[VenueEvent]":
+    def events(self) -> asyncio.Queue[VenueEvent]:
         """Очередь событий user-stream (общая с движком)."""
         return self._events
 

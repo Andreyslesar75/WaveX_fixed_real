@@ -6,7 +6,11 @@ import pytest
 from pydantic import ValidationError
 
 from trading.types import (
-    OrderKind, OrderRequest, OrderSide, OrderState, make_client_id,
+    OrderKind,
+    OrderRequest,
+    OrderSide,
+    OrderState,
+    make_client_id,
 )
 
 

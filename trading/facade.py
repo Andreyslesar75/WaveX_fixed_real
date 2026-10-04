@@ -15,10 +15,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from .engine import EntryIntent, TradingEngine
 from .settings import EngineSettings
@@ -105,7 +106,7 @@ class PositionManager:
         price: float,
         score: float,
         confidence: str,
-        klines_1h: list,
+        klines_1h: list[Any],
         high24: float,
         low24: float,
         structural_level: float | None = None,

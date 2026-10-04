@@ -24,15 +24,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import aiohttp  # noqa: E402
+from typing import Any
 
-from trading.binance.rest import AioHttpTransport, BinanceRestClient  # noqa: E402
-from trading.clock import Clock  # noqa: E402
-from trading.filters import parse_symbol_filters  # noqa: E402
-from trading.money import compute_entry_qty, round_price_tick  # noqa: E402
-from trading.ratelimit import RateLimiter  # noqa: E402
-from trading.types import Side  # noqa: E402
-from trading.venue import UnknownOrderError  # noqa: E402
+import aiohttp
+
+from trading.binance.rest import AioHttpTransport, BinanceRestClient
+from trading.clock import Clock
+from trading.filters import parse_symbol_filters
+from trading.money import compute_entry_qty, round_price_tick
+from trading.ratelimit import RateLimiter
+from trading.types import Side
 
 BASE = "https://fapi.binance.com"
 RESULTS: dict[str, str] = {}
@@ -68,7 +69,7 @@ def show_headers(headers: dict[str, str]) -> None:
 async def main() -> None:
 
     try:
-        transport = AioHttpTransport(session)
+
         parser = argparse.ArgumentParser()
         parser.add_argument("--live", action="store_true", help="ордерные проверки")
         parser.add_argument("--symbol", default="RLCUSDT")
@@ -83,18 +84,13 @@ async def main() -> None:
             sys.exit("Ключи не заданы (.env)")
 
         session = aiohttp.ClientSession()
+        transport = AioHttpTransport(session)  # ссылка для V-API-7 (last_headers)
         limiter = RateLimiter()
 
         async def public(path: str, params=None):  # type: ignore[no-untyped-def]
-            url = f"{BASE}{path}"
-            if params:
-                from urllib.parse import urlencode
-                url += "?" + urlencode(params)
-            async with session.get(url) as r:
-                return json.loads(await r.text())
+            ...
 
         clock = Clock(public)
-        transport = AioHttpTransport(session)  # ссылка нужна блоку V-API-7 (last_headers)
         rest = BinanceRestClient(
             transport=transport, api_key=api_key,
             secret_key=secret, base_url=BASE, limiter=limiter, clock=clock,
@@ -103,7 +99,8 @@ async def main() -> None:
         # ---------------- dry-run ----------------
         step("Синхронизация времени", "V-API-0")
         offset = await clock.sync()
-        ok("V-API-0", f"offset={offset} мс (recvWindow 5000 — запас {'да' if abs(offset) < 4500 else 'НЕТ'}")
+        margin = "да" if abs(offset) < 4500 else "НЕТ"
+        ok("V-API-0", f"offset={offset} мс (recvWindow 5000 — запас {margin})")
 
         step("exchangeInfo/фильтры", "V-API-2")
         info = await rest.exchange_info(args.symbol)
@@ -121,7 +118,7 @@ async def main() -> None:
         raw = await rest.position_risk()
         positions = [p for p in raw if Decimal(str(p.get("positionAmt", "0"))) != 0]
         bal = await rest.balance()
-        usdt = next((b for b in bal if b.get("asset") == "USDT"), {})
+        usdt: Any = next((b for b in bal if b.get("asset") == "USDT"), {})
         print(f"  позиций: {len(positions)}; ключи USDT-баланса: {list(usdt)[:8]}")
         ok("V-API-3", f"positionRisk keys={list(raw[0]) if raw else 'пусто'}")
 
@@ -199,9 +196,13 @@ async def main() -> None:
                     "workingType": "MARK_PRICE", "priceProtect": "TRUE",
                     "newClientOrderId": f"va{int(time.time())}tp",
                 })
-                ok("V-API-5/6", f"SL={sl['status']} TP={tp['status']} — сосуществование подтверждено")
+                ok(
+                    "V-API-5/6",
+                    f"SL={sl['status']} TP={tp['status']} — сосуществование подтверждено",
+                )
                 open_now = await rest.open_orders(args.symbol)
-                print(f"  openOrders: {[(o.get('clientOrderId'), o.get('status')) for o in open_now]}")
+                ids = [(o.get("clientOrderId"), o.get("status")) for o in open_now]
+                print(f"  openOrders: {ids}")
 
                 step("Ожидание ORDER_TRADE_UPDATE (raw формат)", "V-API-5")
                 listen = await rest.create_listen_key()
@@ -211,7 +212,8 @@ async def main() -> None:
                 got_update = False
                 try:
                     while time.monotonic() < deadline and not got_update:
-                        msg = await asyncio.wait_for(ws.receive(), timeout=deadline - time.monotonic())
+                        remaining = deadline - time.monotonic()
+                        msg = await asyncio.wait_for(ws.receive(), timeout=remaining)
                         if msg.type is not aiohttp.WSMsgType.TEXT:
                             break
                         payload = json.loads(msg.data)
@@ -229,7 +231,7 @@ async def main() -> None:
                         print("  finally: allOpenOrders отменены")
                     except Exception as exc:
                         print(f"  finally: отмена: {exc}")
-                    
+
                     # остаток позиции закрываем market reduceOnly (уборка)
                     risk = [p for p in await rest.position_risk()
                             if p["symbol"] == args.symbol
@@ -265,7 +267,7 @@ async def main() -> None:
 
     finally:
         await session.close()
-    
+
 
 
 if __name__ == "__main__":

@@ -106,7 +106,7 @@ async def _teardown(
     stop.set()
     await task
     engine._storage.close()
-    db_path.unlink(missing_ok=True)
+    db_path.unlink(missing_ok=True)  # noqa: ASYNC240 — тестовая уборка
 
 
 def _feed(engine: TradingEngine, price: Decimal) -> None:
@@ -206,7 +206,7 @@ class TestManageFlow:
     async def test_sl_closes_and_sets_cooldown(self, tmp_path) -> None:
         _reset()
         db = tmp_path / "e.db"
-        engine, venue, clock = await _make_engine(
+        engine, _venue, clock = await _make_engine(
             db, monitor_interval_sec=0.01, sl_rest_check_interval_sec=999.0,
         )
         stop, task = await _start(engine)
@@ -273,7 +273,7 @@ class TestManageFlow:
     async def test_timeout_closes(self, tmp_path) -> None:
         _reset()
         db = tmp_path / "e.db"
-        engine, venue, clock = await _make_engine(
+        engine, _venue, clock = await _make_engine(
             db, max_hold_sec=1.0, monitor_interval_sec=0.01,
             sl_rest_check_interval_sec=999.0,
         )
@@ -293,7 +293,7 @@ class TestRejects:
     async def test_second_signal_max_positions(self, tmp_path) -> None:
         _reset()
         db = tmp_path / "e.db"
-        engine, venue, _ = await _make_engine(
+        engine, _venue, _ = await _make_engine(
             db, monitor_interval_sec=0.01, sl_rest_check_interval_sec=999.0,
         )
         stop, task = await _start(engine)
@@ -310,7 +310,7 @@ class TestRejects:
     async def test_low_score_rejected_with_reason(self, tmp_path) -> None:
         _reset()
         db = tmp_path / "e.db"
-        engine, venue, _ = await _make_engine(db)
+        engine, _venue, _ = await _make_engine(db)
         ok, why = await engine.submit_signal(
             EntryIntent(**{**EI, "score": 10.0})
         )
@@ -323,4 +323,4 @@ class TestRejects:
         assert row is not None
         assert row[0] == "rejected" and row[1] == "score_threshold"
         engine._storage.close()
-        db.unlink(missing_ok=True)
+        db.unlink(missing_ok=True)  # noqa: ASYNC240 — тестовая уборка

@@ -5,8 +5,14 @@ from decimal import Decimal
 import pytest
 
 from trading.money import (
-    D, MoneyError, ceil_to_step, compute_entry_qty, floor_to_step,
-    round_price_tick, to_api_str, validate_split,
+    D,
+    MoneyError,
+    ceil_to_step,
+    compute_entry_qty,
+    floor_to_step,
+    round_price_tick,
+    to_api_str,
+    validate_split,
 )
 from trading.types import RejectReason, Side, SymbolFilters
 
@@ -62,7 +68,9 @@ class TestComputeEntryQty:
         assert reason is RejectReason.QTY_BELOW_MIN
 
     def test_notional_below_min(self) -> None:
-        qty, reason = compute_entry_qty(Decimal("20"), Decimal("0.32"), _filters(min_notional="100"))
+        qty, reason = compute_entry_qty(
+            Decimal("20"), Decimal("0.32"), _filters(min_notional="100")
+        )
         assert qty is None
         assert reason is RejectReason.NOTIONAL_BELOW_MIN
 

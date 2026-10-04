@@ -44,7 +44,8 @@ import numpy as np
 from api import BinanceFuturesRestClient
 from config import Config
 from logger import log, parse_klines, ema, play_sound
-from trading import build_position_manager  # PositionManager-совместимый фасад
+from trading import build_position_manager, PositionManager  # PositionManager-совместимый фасад
+
 
 from signals import (
     check_not_freefall,

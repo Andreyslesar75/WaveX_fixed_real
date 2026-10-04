@@ -3,8 +3,22 @@ python_version = "3.12"
 strict = true
 files = ["trading", "scripts"]
 
+# Legacy-модули втянуты в проверку через импорты (config -> logger,
+# calculations). Не правим их (граница задачи) — глушим ошибки конфигом.
+[[tool.mypy.overrides]]
+module = [
+    "config", "logger", "calculations", "signals",
+    "api", "scanner", "gui", "main", "ws_client",
+]
+ignore_errors = true
+
 [tool.ruff]
 line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "ASYNC", "RUF"]
+ignore = [
+    "RUF001",  # кириллица в строках — язык проекта русский
+    "RUF002",  # кириллица в docstring
+    "RUF003",  # кириллица в комментариях
+]

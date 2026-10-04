@@ -6,12 +6,17 @@ from typing import Any
 import pytest
 
 from trading.binance.rest import (
-    BinanceRestClient, TransportTimeout, UnknownOrderError,
+    BinanceRestClient,
+    TransportTimeout,
+    UnknownOrderError,
 )
 from trading.binance.venue import RealVenue, build_order_params
 from trading.ratelimit import RateLimiter
 from trading.types import (
-    OrderKind, OrderRequest, OrderSide, OrderState,
+    OrderKind,
+    OrderRequest,
+    OrderSide,
+    OrderState,
 )
 from trading.venue import InsufficientFundsError
 

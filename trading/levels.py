@@ -47,7 +47,7 @@ class CalculationsLevelCalculator:
 
     def __init__(self) -> None:
         """Импорт calculations внутри: config-зависимость не тянется в тесты движка."""
-        from calculations import calc_sl_tp, calc_sl_tp_short  # noqa: PLC0415 — граница
+        from calculations import calc_sl_tp, calc_sl_tp_short
 
         self._long = calc_sl_tp
         self._short = calc_sl_tp_short

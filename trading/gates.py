@@ -43,11 +43,11 @@ class GateOutcome:
     qty: Decimal | None = None
 
     @classmethod
-    def passed(cls, qty: Decimal) -> "GateOutcome":
+    def passed(cls, qty: Decimal) -> GateOutcome:
         return cls(ok=True, qty=qty)
 
     @classmethod
-    def fail(cls, reason: RejectReason, detail: str = "") -> "GateOutcome":
+    def fail(cls, reason: RejectReason, detail: str = "") -> GateOutcome:
         return cls(ok=False, reason=reason, detail=detail)
 
 
@@ -119,15 +119,25 @@ def check_gates(
             f"size_too_small ({settings.position_size_usdt:.2f} < min "
             f"{settings.min_position_size_usdt:.2f})",
         )
-    qty, reason = compute_entry_qty(
+
+    qty_result = compute_entry_qty(
         settings.position_size_usdt, signal.price, filters
     )
-    if reason is not None:
-        return GateOutcome.fail(
-            reason, f"size_too_small ({settings.position_size_usdt:.2f} < min "
-            f"{max(filters.min_notional, settings.min_position_size_usdt):.2f})"
-            if reason is RejectReason.NOTIONAL_BELOW_MIN else reason.value,
-        )
+    if qty_result[0] is None:
+        reason = qty_result[1]
+        assert reason is not None  # инвариант QtyResult
+        detail = reason.value
+        if reason is RejectReason.NOTIONAL_BELOW_MIN:
+            min_needed = max(
+                filters.min_notional, settings.min_position_size_usdt
+            )
+            detail = (
+                f"size_too_small ({settings.position_size_usdt:.2f} "
+                f"< min {min_needed:.2f})"
+            )
+        return GateOutcome.fail(reason, detail)
     if balance is not None and balance < settings.position_size_usdt:
-        return GateOutcome.fail(RejectReason.INSUFFICIENT_BALANCE, "insufficient_balance")
-    return GateOutcome.passed(qty)
+        return GateOutcome.fail(
+            RejectReason.INSUFFICIENT_BALANCE, "insufficient_balance"
+        )
+    return GateOutcome.passed(qty_result[0])

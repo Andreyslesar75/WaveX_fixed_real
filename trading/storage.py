@@ -16,13 +16,14 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any
 
-from .types import Mode, OrderState
+from .types import Mode
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS signals (
@@ -465,7 +466,9 @@ class StorageReader:
     def __init__(self, path: Path) -> None:
         self._path = path
 
-    def _query(self, sql: str, params: tuple = ()) -> list[tuple]:
+    def _query(
+        self, sql: str, params: tuple[Any, ...] = ()
+    ) -> list[tuple[Any, ...]]:
         """SELECT через одноразовое соединение (WAL — неблокирующе для writer)."""
         conn = sqlite3.connect(self._path)
         try:

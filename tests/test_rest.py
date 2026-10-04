@@ -1,5 +1,4 @@
 """Тесты REST-слоя: подпись HMAC, типизированные ошибки, 429, GET-ретраи."""
-import asyncio
 import hashlib
 import hmac
 from typing import Any
@@ -8,9 +7,16 @@ from urllib.parse import urlencode
 import pytest
 
 from trading.binance.rest import (
-    BinanceApiError, BinanceRestClient, FilterFailureError,
-    InsufficientFundsError, OrderNotFoundError, TimestampSyncError,
-    TransientError, TransportError, TransportTimeout, UnknownOrderError,
+    BinanceApiError,
+    BinanceRestClient,
+    FilterFailureError,
+    InsufficientFundsError,
+    OrderNotFoundError,
+    TimestampSyncError,
+    TransientError,
+    TransportError,
+    TransportTimeout,
+    UnknownOrderError,
 )
 from trading.ratelimit import RateLimiter
 

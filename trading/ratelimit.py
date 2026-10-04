@@ -18,7 +18,7 @@ import asyncio
 import logging
 import math
 import time
-from typing import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ class _TokenBucket:
         if n <= self._tokens:
             return 0
         deficit = n - self._tokens
-        return int(math.ceil(deficit / self._refill_per_ms))
+        return math.ceil(deficit / self._refill_per_ms)
 
     def update_used(self, used: int) -> None:
         """Синхронизация с заголовком биржи.
@@ -118,14 +118,14 @@ class RateLimiter:
     def update_from_headers(self, headers: Mapping[str, str]) -> None:
         """Скорректировать бакеты по заголовкам ответа (если есть)."""
         used = self._get_ci(headers, "X-MBX-USED-WEIGHT-1M")
-        if used is not None and used.isdigit():
-            self._weight.update_used(int(used))
+        if used is not None:
+            self._weight.update_used(used)
         c10 = self._get_ci(headers, "X-MBX-ORDER-COUNT-10S")
-        if c10 is not None and c10.isdigit():
-            self._orders10.update_used(int(c10))
+        if c10 is not None:
+            self._orders10.update_used(c10)
         c1m = self._get_ci(headers, "X-MBX-ORDER-COUNT-1M")
-        if c1m is not None and c1m.isdigit():
-            self._orders_min.update_used(int(c1m))
+        if c1m is not None:
+            self._orders_min.update_used(c1m)
 
     def pause(self, until_ms: int, reason: str) -> None:
         """Глобальная пауза запросов (429/418 + Retry-After)."""

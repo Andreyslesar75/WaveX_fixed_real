@@ -19,12 +19,16 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Mapping
 from decimal import Decimal
-from typing import Any, Mapping, NamedTuple, Protocol
+from typing import Any, NamedTuple, Protocol
 
 from ..types import OrderState, OrderUpdateEvent
 from ..venue import (
-    ExchangePosition, VenueAccountUpdate, VenueEvent, VenueOrderUpdate,
+    ExchangePosition,
+    VenueAccountUpdate,
+    VenueEvent,
+    VenueOrderUpdate,
     VenueReconnected,
 )
 
@@ -194,7 +198,7 @@ class UserStream:
         api: ListenKeyApi,
         factory: WsFactory,
         ws_base_url: str,
-        events: "asyncio.Queue[VenueEvent]",
+        events: asyncio.Queue[VenueEvent],
         silence_timeout_s: float = 60.0,
         keepalive_interval_s: float = 1800.0,
         reconnect_delay_s: float = 1.0,

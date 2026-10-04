@@ -16,14 +16,17 @@ from trading.engine import TradingEngine
 from trading.filters import FiltersCache
 from trading.levels import PercentLevelCalculator
 from trading.notifier import LogNotifier
+from trading.paper.venue import PaperVenue
 from trading.settings import EngineSettings
 from trading.storage import OrderRow, Storage, StoredPosition
 from trading.types import Fill, Mode, OrderAck, OrderRequest, OrderState
 from trading.venue import (
-    ExchangePosition, ExecutionVenue, UnknownOrderError, VenueEvent,
+    ExchangePosition,
+    ExecutionVenue,
+    UnknownOrderError,
+    VenueEvent,
     VenueReconnected,
 )
-from trading.paper.venue import PaperVenue
 
 START = 1_000_000
 
@@ -32,7 +35,7 @@ class FakeReconVenue(ExecutionVenue):
     """Сценарная «биржа»: всё состояние задаётся тестом напрямую."""
 
     def __init__(self) -> None:
-        self._events: "asyncio.Queue[VenueEvent]" = asyncio.Queue()
+        self._events: asyncio.Queue[VenueEvent] = asyncio.Queue()
         self.venue_positions: list[ExchangePosition] = []
         self.venue_trades: dict[str, list[Fill]] = {}
         self.venue_open: dict[str, tuple[str, OrderAck]] = {}
@@ -147,7 +150,7 @@ async def _make_engine(
     storage = Storage(db_path)
     storage.initialize()
 
-    async def fetch(path, params):  # noqa: ANN001 — тестовая заглушка
+    async def fetch(path, params):
         return {"symbols": [{
             "symbol": "RLCUSDT", "status": "TRADING",
             "pricePrecision": 4, "quantityPrecision": 1,

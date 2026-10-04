@@ -2,7 +2,7 @@
 from decimal import Decimal
 
 from trading.manage import (
-    breakeven_price, check_position, profit_pct, trailing_sl,
+    check_position,
 )
 from trading.settings import EngineSettings
 from trading.types import ExitReason, PositionSnapshot, Side

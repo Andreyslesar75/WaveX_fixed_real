@@ -3,7 +3,11 @@ from decimal import Decimal
 from pathlib import Path
 
 from trading.storage import (
-    OrderRow, Storage, StorageReader, StoredPosition, TradeRecord,
+    OrderRow,
+    Storage,
+    StorageReader,
+    StoredPosition,
+    TradeRecord,
 )
 from trading.types import Mode
 
@@ -65,7 +69,7 @@ class TestStorage:
                 breakeven_done=True,
             ))
         reader = StorageReader(Path("test_v2.db"))
-        wr, total, wins, losses = reader.get_win_rate()
+        _wr, total, wins, losses = reader.get_win_rate()
         assert total == 3 and wins == 2 and losses == 1
         trades = reader.get_trades(2)
         assert len(trades) == 2 and "T" in trades[0]["exit_time"]
