@@ -431,15 +431,16 @@ class Storage:
         return row[0] if row else None
 
     def today_realized(self, mode: Mode, day_start_ms: int) -> Decimal:
-        """Σ net_pnl сделок режима с начала суток (дневной лимит)."""
+        """Σ net_pnl сделок с начала суток (дневной лимит).
+
+        trades не содержит mode (схема Д6): одна БД на активный режим
+        процесса (решение Б4-2), фильтр по mode не нужен. Аргумент mode
+        сохранён в сигнатуре — точка будущей миграции, если режимы
+        когда-нибудь будут вестись в одной БД параллельно.
+        """
+        del mode
         with self._lock, self._c() as conn:
             rows = conn.execute(
-                "SELECT net_pnl FROM trades WHERE mode=? AND exit_ts>=?"
-                " AND exit_ts IS NOT NULL",
-                (mode.value, day_start_ms),
-            ).fetchall() if False else conn.execute(
-                # mode в trades нет в DDL — фильтруем по символу времени;
-                # режим одна БД на процесс, дневной лимит считаем по всему файлу
                 "SELECT net_pnl FROM trades WHERE exit_ts>=?", (day_start_ms,),
             ).fetchall()
         return sum((Decimal(r[0]) for r in rows), Decimal("0"))
@@ -451,12 +452,6 @@ class Storage:
                 "SELECT COUNT(*) FROM trades WHERE exit_ts>=?", (day_start_ms,),
             ).fetchone()
         return int(row[0]) if row else 0
-
-
-@dataclass(slots=True)
-class _Empty:  # pragma: no cover - технический
-    pass
-
 
 class StorageReader:
     """Читатель для GUI-потока: свежее соединение на каждый вызов.

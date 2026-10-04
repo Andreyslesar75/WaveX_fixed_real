@@ -94,8 +94,9 @@ async def main() -> None:
                 return json.loads(await r.text())
 
         clock = Clock(public)
+        transport = AioHttpTransport(session)  # ссылка нужна блоку V-API-7 (last_headers)
         rest = BinanceRestClient(
-            transport=AioHttpTransport(session), api_key=api_key,
+            transport=transport, api_key=api_key,
             secret_key=secret, base_url=BASE, limiter=limiter, clock=clock,
         )
 
