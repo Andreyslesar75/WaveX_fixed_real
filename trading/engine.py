@@ -335,9 +335,30 @@ class TradingEngine:
             )
             ack = await self._venue.execute_order(entry_req)
             self._track_new_order(entry_req, "ENTRY", ack, entry_cid)
-            if ack.status not in (OrderState.FILLED, OrderState.PARTIALLY_FILLED):
+            if ack.status is OrderState.REJECTED:
                 await self._handle_entry_failure(intent, sid, ack)
                 return False, f"order_failed: {ack.status.value}"
+            if ack.status is OrderState.TIMEOUT_UNKNOWN:
+                await self._handle_entry_failure(intent, sid, ack)
+                return False, "order_unconfirmed: timeout"
+            # MARKET-POST часто отвечает NEW без avgPrice/executedQty —
+            # финал прилетает WS-событием; дождаться его опросом
+            # (идемпотентно, по clientOrderId) и ставить SL/TP на факт
+            deadline = self._now_ms() + 10_000
+            while ack.status in (OrderState.NEW, OrderState.PARTIALLY_FILLED):
+                if self._now_ms() > deadline:
+                    break
+                await asyncio.sleep(0.2)
+                try:
+                    ack2 = await self._venue.query_order(
+                        intent.symbol, entry_cid
+                    )
+                except Exception as exc:
+                    logger.warning("entry resolve %s: %s", entry_cid, exc)
+                    ack2 = None
+                if ack2 is not None:
+                    ack = ack2
+                    self._track_update_order(entry_req, "ENTRY", ack, entry_cid)
             executed = ack.executed_qty or qty
             avg = ack.avg_price or intent.price
             pos = ManagedPosition(
@@ -1049,6 +1070,24 @@ class TradingEngine:
         self._orders[request.client_order_id] = tracked
         return tracked
 
+    def _track_update_order(
+        self, request: OrderRequest, role: str, ack: OrderAck,
+        position_ref: str,
+    ) -> None:
+        """Обновить статус существующего ордера в книге/БД после resolve."""
+        tracked = self._orders.get(request.client_order_id)
+        if tracked is None:
+            self._track_new_order(request, role, ack, position_ref)
+            return
+        if tracked.exchange_order_id is None and ack.exchange_order_id is not None:
+            tracked.exchange_order_id = ack.exchange_order_id
+        if ack.executed_qty is not None:
+            tracked.filled_qty = ack.executed_qty
+        if ack.avg_price is not None:
+            tracked.avg_price = ack.avg_price
+        self._storage.update_order_status(
+            tracked.row_id, ack.status.value, tracked.exchange_order_id,
+        )
 
     def _persist_position(self, pos: ManagedPosition, now: int) -> None:
         """Снапшот в БД (dirty-check внутри storage — минимум записи)."""

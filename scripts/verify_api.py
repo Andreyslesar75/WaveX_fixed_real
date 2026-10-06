@@ -227,8 +227,22 @@ async def main() -> None:
                 print(f"  вход: {entry['status']} avg={entry.get('avgPrice')} "
                     f"exec={entry.get('executedQty')} "
                     f"latency={(time.monotonic()-t0)*1000:.0f}ms")
-                executed = Decimal(str(entry.get("executedQty", str(qty))))
-                avg = Decimal(str(entry.get("avgPrice", str(price))))
+                # MARKET-POST отвечает NEW с нулями; финал — чуть позже.
+                # Опрашиваем до FILLED (идемпотентно, orderId из ответа).
+                execD = Decimal("0")
+                avg = Decimal("0")
+                oid = entry.get("orderId")
+                for _ in range(30):  # до ~15 с
+                    await asyncio.sleep(0.5)
+                    st = await rest.get_order(args.symbol, order_id=oid)
+                    execD = Decimal(str(st.get("executedQty", "0")))
+                    if st.get("status") == "FILLED":
+                        avg = Decimal(str(st.get("avgPrice", "0")))
+                        break
+                if avg == 0:
+                    avg = Decimal(str(st.get("avgPrice", str(price))))
+                executed = execD if execD > 0 else qty
+                print(f"  финал входа: status={st.get('status')} avg={avg} exec={executed}")
                 ok("V-API-5", "MARKET исполнен")
                 step("positionRisk v3: поля позиции", "V-API-3b")
                 risk_all = await rest.position_risk()
@@ -239,26 +253,6 @@ async def main() -> None:
                 else:
                     print("  позиция не видна (проверить частичное исполнение)")
 
-                # step("SL closePosition + TP reduceOnly (быстрые, ±0.1%)", "V-API-5/6")
-                # sl_px = round_price_tick(avg * Decimal("0.999"), Side.LONG, sf.tick_size)
-                # tp_px = round_price_tick(avg * Decimal("1.001"), Side.LONG, sf.tick_size)
-                # sl = await rest.new_order({
-                #     "symbol": args.symbol, "side": "SELL", "type": "STOP_MARKET",
-                #     "stopPrice": str(sl_px), "closePosition": "true",
-                #     "workingType": "MARK_PRICE", "priceProtect": "TRUE",
-                #     "newClientOrderId": f"va{int(time.time())}sl",
-                # })
-                # tp = await rest.new_order({
-                #     "symbol": args.symbol, "side": "SELL",
-                #     "type": "TAKE_PROFIT_MARKET", "stopPrice": str(tp_px),
-                #     "quantity": str(executed), "reduceOnly": "true",
-                #     "workingType": "MARK_PRICE", "priceProtect": "TRUE",
-                #     "newClientOrderId": f"va{int(time.time())}tp",
-                # })
-                # ok(
-                #     "V-API-5/6",
-                #     f"SL={sl['status']} TP={tp['status']} — сосуществование подтверждено",
-                # )
                 step("Algo: SL closePosition + TP reduceOnly (±0.1%) [V-API-5/6]", "V-API-5/6")
                 sl_px = round_price_tick(avg * Decimal("0.999"), Side.LONG, sf.tick_size)
                 tp_px = round_price_tick(avg * Decimal("1.001"), Side.LONG, sf.tick_size)
@@ -270,21 +264,28 @@ async def main() -> None:
                     "workingType": "MARK_PRICE", "clientAlgoId": f"{cid_base}sl",
                 })
                 print(f"  RAW POST algoOrder (SL): {json.dumps(sl, ensure_ascii=False)}")
-                tp = await rest.algo_order_new({
-                    "algoType": "CONDITIONAL", "symbol": args.symbol,
-                    "side": "SELL", "type": "TAKE_PROFIT_MARKET",
-                    "triggerPrice": str(tp_px), "quantity": str(executed),
-                    "reduceOnly": "true", "workingType": "MARK_PRICE",
-                    "clientAlgoId": f"{cid_base}tp",
-                })
-                print(f"  RAW POST algoOrder (TP): {json.dumps(tp, ensure_ascii=False)}")
-                ok("V-API-5/6", f"SL={sl.get('algoStatus', sl.get('status'))} "
-                                f"TP={tp.get('algoStatus', tp.get('status'))} — оба встали")
+                if executed <= 0:
+                    print("  ⚠️ исполнение не подтверждено — TP пропущен, только SL")
+                else:
+                    tp = await rest.algo_order_new({
+                        "algoType": "CONDITIONAL", "symbol": args.symbol,
+                        "side": "SELL", "type": "TAKE_PROFIT_MARKET",
+                        "triggerPrice": str(tp_px), "quantity": str(executed),
+                        "reduceOnly": "true", "workingType": "MARK_PRICE",
+                        "clientAlgoId": f"{cid_base}tp",
+                    })
+                    print(f"  RAW POST algoOrder (TP): {json.dumps(tp, ensure_ascii=False)}")
+                    ok("V-API-5/6", f"SL={sl.get('algoStatus', sl.get('status'))} "
+                                    f"TP={tp.get('algoStatus', tp.get('status'))} — оба встали")
 
                 step("Пробы resolve/cancel-семантики Algo [V-API-10]", "V-API-10")
-                ghost = await rest.algo_order_query(args.symbol, f"{cid_base}ghost000")
-                print(f"  RAW GET несуществующего: {json.dumps(ghost, ensure_ascii=False) if ghost else ghost!r}")
-                ok("V-API-10", f"ghost-GET ответ: {type(ghost).__name__}")
+                try:
+                    ghost = await rest.algo_order_query(args.symbol, f"{cid_base}ghost000")
+                    print(f"  ghost: штатный ответ {ghost!r}")
+                    ok("V-API-10", "ghost-GET вернул тело (не исключение)")
+                except Exception as exc:
+                    print(f"  ghost-GET: {exc}")
+                    ok("V-API-10", f"несуществующий cid -> {type(exc).__name__} (=-2013?)")
                 open_now = await rest.algo_orders_open(args.symbol)
                 print(f"  RAW openAlgoOrders[0]: "
                     f"{json.dumps(open_now[0], ensure_ascii=False) if open_now else 'пусто'}")
