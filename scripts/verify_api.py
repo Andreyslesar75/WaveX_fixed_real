@@ -83,12 +83,47 @@ async def main() -> None:
         if not api_key or not secret:
             sys.exit("Ключи не заданы (.env)")
 
-        session = aiohttp.ClientSession()
+        # trust_env: aiohttp по умолчанию НЕ читает env-прокси (в отличие от
+        # requests в старом api.py). Включаем как в requests; отключить можно
+        # VERIFY_USE_ENV_PROXY=false.
+        use_env_proxy = os.getenv("VERIFY_USE_ENV_PROXY", "true").lower() != "false"
+        session = aiohttp.ClientSession(trust_env=use_env_proxy)
+        print(f"[DIAG] aiohttp trust_env={use_env_proxy} (env-прокси, как requests)")
+        for var in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+            if os.getenv(var):
+                print(f"[DIAG] {var}={os.getenv(var)}")
         transport = AioHttpTransport(session)  # ссылка для V-API-7 (last_headers)
         limiter = RateLimiter()
 
         async def public(path: str, params=None):  # type: ignore[no-untyped-def]
-            ...
+            """GET с диагностикой: статус/тело печатаются при любом отклонении.
+
+            Прежняя версия молча возвращала json.loads(body): ответ "null"
+            превращался в None и падал в Clock без причины. Теперь видно,
+            ЧТО именно отвечает сеть (статус, Server/Via, фрагмент тела).
+            """
+            url = f"{BASE}{path}"
+            if params:
+                from urllib.parse import urlencode
+                url += "?" + urlencode(params)
+            async with session.get(url) as r:
+                body = await r.text()
+                if r.status != 200:
+                    print(f"[DIAG] {path}: HTTP {r.status}")
+                    print(f"[DIAG] Server={r.headers.get('Server')} Via={r.headers.get('Via')}")
+                    print(f"[DIAG] body[:300]={body[:300]!r}")
+                    r.raise_for_status()
+                try:
+                    data = json.loads(body)
+                except ValueError:
+                    print(f"[DIAG] {path}: HTTP 200, тело не JSON: {body[:300]!r}")
+                    raise
+                if data is None:
+                    # тело буквально "null": так отвечает не Binance, а
+                    # перехватчик (прокси/фильтр). Честный raise вместо тишины.
+                    print(f"[DIAG] {path}: HTTP 200, тело 'null' — перехват?")
+                    print(f"[DIAG] Server={r.headers.get('Server')} Via={r.headers.get('Via')}")
+                return data
 
         clock = Clock(public)
         rest = BinanceRestClient(
@@ -179,6 +214,14 @@ async def main() -> None:
                 executed = Decimal(str(entry.get("executedQty", str(qty))))
                 avg = Decimal(str(entry.get("avgPrice", str(price))))
                 ok("V-API-5", "MARKET исполнен")
+                step("positionRisk v3: поля позиции", "V-API-3b")
+                risk_all = await rest.position_risk()
+                own = [p for p in risk_all if p.get("symbol") == args.symbol]
+                if own:
+                    print(f"  ключи: {list(own[0])}")
+                    ok("V-API-3b", f"positionAmt={own[0].get('positionAmt')}")
+                else:
+                    print("  позиция не видна (проверить частичное исполнение)")
 
                 step("SL closePosition + TP reduceOnly (быстрые, ±0.1%)", "V-API-5/6")
                 sl_px = round_price_tick(avg * Decimal("0.999"), Side.LONG, sf.tick_size)
