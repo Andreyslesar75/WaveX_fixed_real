@@ -205,6 +205,7 @@ class TradingEngine:
         self._ready = asyncio.Event()
         self._stop: asyncio.Event | None = None
         self._tasks: list[asyncio.Task[None]] = []
+        self._bg_tasks: set[asyncio.Task[None]] = set()  # фоновые сверки (RUF006)
         self._last_rest_check: dict[str, int] = {}
         self._volume_provider = volume_provider
         self._vol_last_fetch: dict[str, int] = {}
@@ -401,6 +402,9 @@ class TradingEngine:
         await stop.wait()
         for task in self._tasks:
             task.cancel()
+
+        for task in self._bg_tasks:
+            task.cancel()
         # дождаться фактического завершения (тесты/рестарт без «зависших» задач)
         await asyncio.gather(*self._tasks, return_exceptions=True)
 
@@ -523,7 +527,9 @@ class TradingEngine:
                     f"fill с чужим cid {ev.client_order_id} при открытой позиции"
                     " — точечная сверка",
                 )
-                asyncio.create_task(self._reconciler.full_symbol(ev.symbol))
+                task = asyncio.create_task(self._reconciler.full_symbol(ev.symbol))
+                self._bg_tasks.add(task)
+                task.add_done_callback(self._bg_tasks.discard)
             return
         if ev.state is not None:
             tracked.state = ev.state

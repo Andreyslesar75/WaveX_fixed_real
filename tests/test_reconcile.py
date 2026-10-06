@@ -209,19 +209,37 @@ class TestStartupDeadClose:
         assert eq >= 1
         storage.close()
 
-    async def test_dead_close_by_unknown_order_is_external(self, tmp_path) -> None:
+    async def test_dead_close_by_unknown_order_external_or_price_fallback(self, tmp_path) -> None:
+        """После алго-миграции исполнение SL может идти с биржевым id
+        (actualOrderId) — роль по exchange_order_id не находится.
+        Фолбэк: цена у SL-уровня (±0.5%) классифицируется как SL даже
+        при чужом id (решение владельца, вариант (а)); далёкая цена —
+        честный EXTERNAL_CLOSE."""
         venue = FakeReconVenue()
         engine = await _make_engine(venue, tmp_path / "recon.db")
         storage = engine._storage
         _seed_position(storage)
+        # 1) чужой id, но цена = SL-уровень -> SL (алго-actualOrderId кейс)
         venue.venue_trades["RLCUSDT"] = [
             _fill(776, "0.32", "62.4", "0.008", START + 1),
-            _fill(999, "0.315", "62.4", "0.0079", START + 2),  # не наш ордер
+            _fill(999, "0.315", "62.4", "0.0079", START + 2),
         ]
         await engine.startup_reconcile()
         row = storage._c().execute("SELECT exit_reason FROM trades").fetchone()
-        assert row is not None and row[0] == "EXTERNAL_CLOSE"
+        assert row is not None and row[0] == "SL"  # ценовой фолбэк
         storage.close()
+        # 2) чужой id И далёкая цена -> EXTERNAL_CLOSE (истинное внешнее)
+        engine2 = await _make_engine(FakeReconVenue(), tmp_path / "recon2.db")
+        storage2 = engine2._storage
+        _seed_position(storage2)
+        engine2._reconciler._venue.venue_trades["RLCUSDT"] = [
+            _fill(776, "0.32", "62.4", "0.008", START + 1),
+            _fill(999, "0.20", "62.4", "0.0079", START + 2),  # далеко от всех уровней
+        ]
+        await engine2.startup_reconcile()
+        row2 = storage2._c().execute("SELECT exit_reason FROM trades").fetchone()
+        assert row2 is not None and row2[0] == "EXTERNAL_CLOSE"
+        storage2.close()
 
     async def test_dead_close_no_trades_unknown_reconcile(self, tmp_path) -> None:
         venue = FakeReconVenue()

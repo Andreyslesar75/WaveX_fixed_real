@@ -129,6 +129,10 @@ class Reconciler:
         только USDT — фиксируется в REPORT (Часть 5).
 
         Инвариант: вызывается под удержанным локом символа.
+
+        Фолбэк классификации: роль по exchange_order_id не найдена
+        (исполнение algo через actualOrderId) -> цена против уровней
+        снапшота (±0.5%) -> SL/TP1/TP2; иначе EXTERNAL_CLOSE.
         """
         stored = next(
             (p for p in self._storage.load_positions() if p.symbol == symbol),
