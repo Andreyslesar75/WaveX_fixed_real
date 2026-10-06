@@ -323,14 +323,11 @@ class Storage:
                 " tp1_client_id=excluded.tp1_client_id,"
                 " tp2_client_id=excluded.tp2_client_id,"
                 " signal_id=excluded.signal_id, updated_ms=excluded.updated_ms",
-                (*new[:2], *_dec_str(pos.entry_price), _dec_str(pos.qty),
-                 _dec_str(pos.size_usdt), pos.score, _dec_str(pos.sl_price),
-                 _dec_str(pos.tp1_price) if pos.tp1_price else None,
-                 _dec_str(pos.tp2_price) if pos.tp2_price else None,
-                 _dec_str(pos.iron_sl_price) if pos.iron_sl_price else None,
-                 int(pos.tp1_done), int(pos.tp2_done), int(pos.breakeven_done),
-                 int(pos.trail_active), pos.sl_client_id, pos.tp1_client_id,
-                 pos.tp2_client_id, pos.signal_id, pos.updated_ms),
+                # [ИСПРАВЛЕНО] прежняя сборка содержала *_dec_str(...) —
+                # звёздочка распаковывала строку посимвольно ("0.32" -> 4
+                # аргумента), давая 22 bindings вместо 20. Ровный набор:
+                # symbol(1) + new(16) + score/signal_id/updated_ms(3) = 20.
+                (pos.symbol, *new, pos.score, pos.signal_id, pos.updated_ms),
             )
         return True
 
@@ -535,3 +532,7 @@ class StorageReader:
             " ORDER BY ts_ms DESC LIMIT ?", (limit,)
         )
         return [(r[0], float(r[1])) for r in reversed(rows)]
+
+    def close(self) -> None:
+        """No-op: соединения per-call, закрывать нечего (совместимость API)."""
+        return None

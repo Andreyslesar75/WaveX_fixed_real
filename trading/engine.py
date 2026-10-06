@@ -42,7 +42,7 @@ from .notifier import Notifier
 from .protection import iron_triggered, restore_stop_market
 from .reconcile import Reconciler
 from .settings import EngineSettings
-from datetime import datetime
+from datetime import datetime, timezone
 from .storage import OrderRow, Storage, StoredPosition, TradeRecord
 from .types import (
     Confidence,
@@ -1093,17 +1093,29 @@ class TradingEngine:
         )
 
     @staticmethod
-    def _local_day_start_ms(now: int) -> int:
+    def _local_day_start_ms(now_ms: int) -> int:
         """Граница суток в локальном времени (паритет со старым .date()).
 
-        Через datetime, а не time.mktime: mktime на Windows падает
-        OverflowError на датах до эпохи (локальная полночь ранних
-        timestamp — отрицательное время). datetime.timestamp()
-        вычисляет календарно и принимает pre-epoch.
+        Чистая арифметика, без ОС-конверсий: и time.mktime, и наивный
+        datetime.timestamp() на Windows падают на pre-epoch (локальная
+        полночь ранних timestamp — отрицательное время). Смещение локали
+        берём разницей wall-clock (fromtimestamp - fromtimestamp(UTC)):
+        обе точки post-epoch и в проде (реальное время), и в тестах.
+        Украина с 2024 без перехода DST (постоянный сдвиг), так что сдвиг
+        полуночи совпадает со сдвигом now; на DST-календарях возможна
+        погрешность 1 ч в два дня года (в проде неактуально).
         """
-        dt = datetime.fromtimestamp(now / 1000)
-        day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
-        return int(day_start.timestamp() * 1000)
+        seconds = now_ms / 1000
+        local_wall = datetime.fromtimestamp(seconds)
+        utc_wall = datetime.fromtimestamp(seconds, tz=timezone.utc).replace(
+            tzinfo=None
+        )
+        offset_s = int((local_wall - utc_wall).total_seconds())
+        midnight = local_wall.replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        days = midnight.toordinal() - 719_163  # 1970-01-01 .toordinal()
+        return (days * 86_400 - offset_s) * 1000
 
     def _roll_daily(self, now: int) -> None:
         """Сброс дневных счётчиков при смене суток (вызывается монитором)."""
