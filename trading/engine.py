@@ -509,6 +509,21 @@ class TradingEngine:
             if ev.client_order_id.startswith("wx"):
                 self._incident(IncidentType.UNKNOWN_ORDER_STATUS, ev.symbol,
                                "critical", f"неизвестный наш ордер {ev.client_order_id}")
+                return
+            # Чужой cid (возможна автоподстановка биржей при исполнении
+            # algo — actualOrderId; формат [НЕУВЕРЕН], снимает V-API-11):
+            # при открытой позиции и исполнении — не молчим, точечная
+            # сверка (биржа — источник истины) вне очереди.
+            if (
+                self._positions.get(ev.symbol) is not None
+                and ev.state is OrderState.FILLED
+            ):
+                self._incident(
+                    IncidentType.UNKNOWN_ORDER_STATUS, ev.symbol, "warning",
+                    f"fill с чужим cid {ev.client_order_id} при открытой позиции"
+                    " — точечная сверка",
+                )
+                asyncio.create_task(self._reconciler.full_symbol(ev.symbol))
             return
         if ev.state is not None:
             tracked.state = ev.state

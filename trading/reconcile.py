@@ -183,7 +183,28 @@ class Reconciler:
                 "only_entry_fills",
             )
             return
-        reason = _ROLE_TO_REASON.get(last_role or "", ExitReason.EXTERNAL_CLOSE)
+        reason = _ROLE_TO_REASON.get(last_role or "", None)
+        if reason is None:
+            # Реальный ордер исполнения algo может нести биржевый id
+            # (actualOrderId) — роль по exchange_order_id не находится.
+            # Фолбэк: классификация по цене закрытия против уровней
+            # снапшота (допуск 0.5%); иначе честный EXTERNAL_CLOSE.
+            entry = stored.entry_price
+            tol = abs(entry) * Decimal("0.005")
+            exit_p = last_closing.price
+            if stored.sl_price is not None and abs(exit_p - stored.sl_price) <= tol:
+                reason = ExitReason.SL
+            elif stored.tp1_price is not None and abs(exit_p - stored.tp1_price) <= tol:
+                reason = ExitReason.TP1
+            elif stored.tp2_price is not None and abs(exit_p - stored.tp2_price) <= tol:
+                reason = ExitReason.TP2
+            else:
+                reason = ExitReason.EXTERNAL_CLOSE
+            logger.info(
+                "[RECON] dead-close %s: роль не найдена, классификация по цене -> %s",
+                symbol, reason.value,
+            )
+
         await self._engine.close_dead_position(
             stored, last_closing.price, last_closing.ts_ms,
             reason, gross, fees_usdt, "dead_close",

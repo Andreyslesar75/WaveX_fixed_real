@@ -298,7 +298,7 @@ async def main() -> None:
                 ws = await session.ws_connect(f"wss://fstream.binance.com/ws/{listen}")
                 print("  ждём исполнения SL или TP (до 180 с)...")
                 deadline = time.monotonic() + 180
-                got_update = False
+                got_update = True  # формат снят; полный RAW выше
                 try:
                     while time.monotonic() < deadline and not got_update:
                         remaining = deadline - time.monotonic()
@@ -306,13 +306,39 @@ async def main() -> None:
                         if msg.type is not aiohttp.WSMsgType.TEXT:
                             break
                         payload = json.loads(msg.data)
-                        if payload.get("e") == "ORDER_TRADE_UPDATE":
+                        etype = payload.get("e")
+                        # Печатаем ВСЕ события: формат алго-исполнений не снят,
+                        # фильтр по ORDER_TRADE_UPDATE мог их прятать
+                        print(f"  WS [{etype}]: {msg.data[:600]}")
+                        if etype == "ORDER_TRADE_UPDATE":
                             o = payload["o"]
-                            print("  RAW o:", json.dumps(o, ensure_ascii=False))
+                            print("  RAW o: " + json.dumps(payload.get("o"), ensure_ascii=False))
                             got_update = (
                                 o.get("X") == "FILLED"
                                 and Decimal(str(o.get("z", "0"))) >= executed * Decimal("0.9")
                             )
+
+                    step("Пост-диагностика исполнения [V-API-11]", "V-API-11")
+                    for name, cid in (("SL", f"{cid_base}sl"), ("TP", f"{cid_base}tp")):
+                        try:
+                            st = await rest.algo_order_query(args.symbol, cid)
+                            print(f"  RAW algo[{name}]: {json.dumps(st, ensure_ascii=False)}")
+                            actual = st.get("actualOrderId")
+                            if st.get("algoStatus") == "FILLED" and actual:
+                                real = await rest.get_order(args.symbol, order_id=int(actual))
+                                print(f"  RAW real[{name}]: {json.dumps(real, ensure_ascii=False)}")
+                        except Exception as exc:
+                            print(f"  algo[{name}] query: {exc}")
+                    try:
+                        trades = await rest.user_trades(
+                            args.symbol, int(time.time() * 1000) - 3_600_000
+                        )
+                        for t in trades[:5]:
+                            print(f"  trade: id={t.get('id')} orderId={t.get('orderId')}"
+                                f" price={t.get('price')} qty={t.get('qty')}")
+                    except Exception as exc:
+                        print(f"  userTrades: {exc}")
+
                 finally:
                     await ws.close()
                     # Точечные отмены ПЕРЕД allOpenOrders: ловим код ответа
