@@ -323,11 +323,12 @@ class Storage:
                 " tp1_client_id=excluded.tp1_client_id,"
                 " tp2_client_id=excluded.tp2_client_id,"
                 " signal_id=excluded.signal_id, updated_ms=excluded.updated_ms",
-                # [ИСПРАВЛЕНО] прежняя сборка содержала *_dec_str(...) —
-                # звёздочка распаковывала строку посимвольно ("0.32" -> 4
-                # аргумента), давая 22 bindings вместо 20. Ровный набор:
-                # symbol(1) + new(16) + score/signal_id/updated_ms(3) = 20.
-                (pos.symbol, *new, pos.score, pos.signal_id, pos.updated_ms),
+                # Порядок = порядок колонок SQL: score идёт 7-й (после
+                # size_usdt), поэтому new делится: new[:5] (side..size_usdt)
+                # -> score -> new[5:] (sl_price..tp2_client_id) -> tail.
+                # Итого: 1 + 5 + 1 + 11 + 1 + 1 = 20 плейсхолдеров.
+                (pos.symbol, *new[:5], pos.score, *new[5:],
+                 pos.signal_id, pos.updated_ms),
             )
         return True
 

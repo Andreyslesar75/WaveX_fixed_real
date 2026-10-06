@@ -94,13 +94,12 @@ def update_mfe_mae(pos: PositionLike, price: Decimal) -> None:
 
 def check_position(
     pos: PositionLike,
-    price: Decimal,
+    price: Decimal | None,
     now_ms: int,
     settings: EngineSettings,
     volume_ratio: float | None = None,
 ) -> ManageAction:
     """Решение по позиции на тике монитора (порядок — как в _check_conditions).
-
     volume_ratio: recent/prior средние объёмов; None = данных нет
     (VOL_DECAY пропускается — как при ошибке klines в старом коде).
     """
@@ -117,6 +116,11 @@ def check_position(
     ):
         return ManageAction(kind="close", exit_reason=ExitReason.VOL_DECAY,
                             detail=f"vol_ratio={volume_ratio:.2f}")
+    if price is None:
+        # TIMEOUT/VOL_DECAY (ветки времени) проверены выше — они обязаны
+        # работать и при пропавшем ценовом фиде (WS умер): защита позиции
+        # не должна зависеть от тика. Ценовые ветки без тика не оцениваются.
+        return ManageAction(kind="none")
     pct = profit_pct(pos, price)
     # 3) трейлинг: активация ставит флаг ДАЖЕ если SL лестницы пока не
     # улучшает текущий (1:1 position_tracker: после активации выход

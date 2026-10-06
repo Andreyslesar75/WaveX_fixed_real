@@ -10,6 +10,7 @@ from trading.storage import (
     TradeRecord,
 )
 from trading.types import Mode
+from dataclasses import replace
 
 POS = StoredPosition(
     symbol="RLCUSDT", side="LONG", entry_ts=1, entry_price=Decimal("100"),
@@ -31,7 +32,7 @@ class TestStorage:
     def test_position_upsert_dirty_check(self) -> None:
         assert self.storage.upsert_position(POS) is True   # insert
         assert self.storage.upsert_position(POS) is False  # no-change: нет записи
-        changed = StoredPosition(**{**POS.__dict__, "qty": Decimal("5")})
+        changed = replace(POS, qty=Decimal("5"))
         assert self.storage.upsert_position(changed) is True
         loaded = self.storage.load_positions()
         assert len(loaded) == 1 and loaded[0].qty == Decimal("5")

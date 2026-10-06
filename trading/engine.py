@@ -435,24 +435,24 @@ class TradingEngine:
                         continue
                     if price is not None:
                         update_mfe_mae(pos, price)
-                        ratio = await self._vol_ratio_if_due(symbol, pos, now)
-                        action = check_position(
-                            pos, price, now, self._settings, ratio
+                    # manage вызывается ВСЕГДА: TIMEOUT/VOL_DECAY не зависят
+                    # от цены (внутри check_position ценовые ветки гвардятся)
+                    ratio = await self._vol_ratio_if_due(symbol, pos, now)
+                    action = check_position(pos, price, now, self._settings, ratio)
+                    if action.kind == "breakeven" and action.new_local_sl:
+                        pos.breakeven_done = True
+                        pos.local_sl_price = action.new_local_sl
+                        self._persist_position(pos, now)
+                        continue
+                    if action.kind == "close":
+                        assert action.exit_reason is not None
+                        await self._close_position_locked(
+                            symbol, action.exit_reason, action.detail
                         )
-                        if action.kind == "breakeven" and action.new_local_sl:
-                            pos.breakeven_done = True
-                            pos.local_sl_price = action.new_local_sl
-                            self._persist_position(pos, now)
-                            continue
-                        if action.kind == "close":
-                            assert action.exit_reason is not None
-                            await self._close_position_locked(
-                                symbol, action.exit_reason, action.detail
-                            )
-                            continue
-                        if action.kind == "trail_move" and action.new_local_sl:
-                            pos.local_sl_price = action.new_local_sl
-                            self._persist_position(pos, now)
+                        continue
+                    if action.kind == "trail_move" and action.new_local_sl:
+                        pos.local_sl_price = action.new_local_sl
+                        self._persist_position(pos, now)
                     await self._part_a(symbol, pos, now)
             self._maybe_write_equity_periodic(now)
 
