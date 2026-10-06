@@ -31,7 +31,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 #: Возвращает Any осознанно: сырой JSON валидируется парсерами этого пакета.
 JsonFetcher = Callable[[str, Mapping[str, str] | None], Awaitable[Any]]
 
-_CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,36}$")
+# Лимит Binance: "less than 36 chars" (-4015, live-подтверждение) => <=35
+_CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,35}$")
 
 
 class Mode(str, Enum):

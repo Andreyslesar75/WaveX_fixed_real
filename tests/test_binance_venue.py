@@ -10,7 +10,7 @@ from trading.binance.rest import (
     TransportTimeout,
     UnknownOrderError,
 )
-from trading.binance.venue import RealVenue, build_order_params
+from trading.binance.venue import RealVenue, build_algo_params, build_order_params
 from trading.ratelimit import RateLimiter
 from trading.types import (
     OrderKind,
@@ -72,6 +72,32 @@ class TestBuildParams:
         assert params["quantity"] == "62.4"
 
 
+class TestAlgoParams:
+    def test_algo_params_contract(self) -> None:
+        sl = OrderRequest(
+            client_order_id="wx1-sl", symbol="RLCUSDT", side=OrderSide.SELL,
+            kind=OrderKind.STOP_MARKET, stop_price=Decimal("0.3139"),
+            close_position=True, price_protect=True,
+        )
+        p = build_algo_params(sl)
+        assert p["algoType"] == "CONDITIONAL"
+        assert p["triggerPrice"] == "0.3139"
+        assert p["clientAlgoId"] == "wx1-sl"
+        assert p["closePosition"] == "true"
+        assert "priceProtect" not in p        # не подтверждён для алго
+        assert "stopPrice" not in p and "newClientOrderId" not in p
+
+    def test_algo_params_reduce_only_qty(self) -> None:
+        tp = OrderRequest(
+            client_order_id="wx1-tp1", symbol="RLCUSDT", side=OrderSide.SELL,
+            kind=OrderKind.TAKE_PROFIT_MARKET, stop_price=Decimal("0.3299"),
+            qty=Decimal("37.5"), reduce_only=True,
+        )
+        p = build_algo_params(tp)
+        assert p["quantity"] == "37.5" and p["reduceOnly"] == "true"
+        assert "closePosition" not in p
+
+
 class TestExecuteOrder:
     async def test_ok_market_filled(self) -> None:
         venue = _venue([(200, {}, {"orderId": 1, "status": "FILLED",
@@ -82,20 +108,19 @@ class TestExecuteOrder:
         assert ack.executed_qty == Decimal("62.4")
 
     async def test_timeout_resolved_to_filled(self) -> None:
+        # resolve: алго-GET честно скажет «нет» → fallback обычный GET
         venue = _venue([
-            TransportTimeout("t/o"),  # POST потерян
+            TransportTimeout("t/o"),                      # POST потерян
+            (400, {}, {"code": -2013, "msg": "Order does not exist"}),  # алго
             (200, {}, {"orderId": 2, "status": "FILLED",
-                       "avgPrice": "0.321", "executedQty": "62.4"}),
+                       "avgPrice": "0.321", "executedQty": "62.4"}),    # обычный
         ])
         ack = await venue.execute_order(ENTRY)
         assert ack.status is OrderState.FILLED  # resolve нашёл исполнение
 
     async def test_timeout_stable_not_found(self) -> None:
-        venue = _venue([
-            TransportTimeout("t/o"),
-            (400, {}, {"code": -2013, "msg": "Order does not exist"}),
-            (400, {}, {"code": -2013, "msg": "Order does not exist"}),
-        ])
+        nf = (400, {}, {"code": -2013, "msg": "Order does not exist"})
+        venue = _venue([TransportTimeout("t/o"), nf, nf, nf, nf])
         ack = await venue.execute_order(ENTRY)
         assert ack.status is OrderState.NOT_FOUND  # безопасный повтор
 
@@ -109,6 +134,33 @@ class TestExecuteOrder:
         ack = await venue.execute_order(ENTRY)
         assert ack.status is OrderState.REJECTED
         assert ack.raw["code"] == -1013  # движок: refresh фильтров + 1 повтор
+
+    async def test_conditional_goes_algo_path(self) -> None:
+        sl = OrderRequest(
+            client_order_id="wx1-sl", symbol="RLCUSDT", side=OrderSide.SELL,
+            kind=OrderKind.STOP_MARKET, stop_price=Decimal("0.3139"),
+            close_position=True,
+        )
+        venue = _venue([(200, {}, {"algoId": 77, "clientAlgoId": "wx1-sl",
+                                   "algoStatus": "NEW"})])
+        ack = await venue.execute_order(sl)
+        assert ack.status is OrderState.NEW
+        assert ack.exchange_order_id == 77
+
+    async def test_algo_resolve_filled_actual_price(self) -> None:
+        sl = OrderRequest(
+            client_order_id="wx1-sl", symbol="RLCUSDT", side=OrderSide.SELL,
+            kind=OrderKind.STOP_MARKET, stop_price=Decimal("0.3139"),
+            close_position=True,
+        )
+        venue = _venue([
+            TransportTimeout("t/o"),
+            (200, {}, {"algoId": 77, "clientAlgoId": "wx1-sl",
+                       "algoStatus": "FILLED", "actualPrice": "0.311"}),
+        ])
+        ack = await venue.execute_order(sl)
+        assert ack.status is OrderState.FILLED
+        assert ack.avg_price == Decimal("0.311")
 
 
 class TestCancel:

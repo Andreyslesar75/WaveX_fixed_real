@@ -267,13 +267,28 @@ class FiltersCache:
         if not isinstance(payload, Mapping):
             return False
         symbols = payload.get("symbols")
-        # [ПРЕДПОЛОЖЕНИЕ] точечный ответ имеет ту же структуру {"symbols": [...]};
-        # проверяется V-API на реале.
-        if not isinstance(symbols, list) or len(symbols) != 1:
-            logger.error("filters: точечный ответ по %s неожиданного формата", symbol)
+        if not isinstance(symbols, list) or not symbols:
+            logger.error("filters: точечный ответ по %s без symbols", symbol)
+            return False
+        # [ИСПРАВЛЕНО] точечный запрос фактически может вернуть полный список
+        # (наблюдено в verify_api: parameter symbol не фильтрует) — берём
+        # запись по ИМЕНИ, symbols[0] подкладывал чужие фильтры (BTCUSDT
+        # вместо RLCUSDT) — критично для пути -1013.
+        if len(symbols) > 1:
+            logger.warning(
+                "filters: exchangeInfo?symbol= вернул %d записей (параметр "
+                "не отфильтровал) — ищем по имени", len(symbols),
+            )
+        entry = next(
+            (s for s in symbols
+             if isinstance(s, Mapping) and s.get("symbol") == symbol),
+            None,
+        )
+        if entry is None:
+            logger.error("filters: символ %s не найден в ответе", symbol)
             return False
         try:
-            sf = parse_symbol_filters(symbols[0])
+            sf = parse_symbol_filters(entry)
         except FiltersError as exc:
             logger.error("filters: точечный парсинг %s провалился: %s", symbol, exc)
             return False

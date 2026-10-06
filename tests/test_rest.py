@@ -135,3 +135,23 @@ class TestRetriesAndLimits:
             await _client(transport, get_retries=0).balance()
         # limiter получил паузу — проверяем косвенно: следующий вызов ждёт
         assert len(transport.calls) == 1
+
+class TestAlgoEndpoints:
+    async def test_algo_new_path_and_error_mapping(self) -> None:
+        transport = FakeTransport([
+            (400, {}, {"code": -1013, "msg": "Filter failure"}),
+        ])
+        from trading.binance.rest import FilterFailureError
+        with pytest.raises(FilterFailureError):
+            await _client(transport).algo_order_new({"symbol": "RLCUSDT"})
+
+    async def test_algo_query_and_cancel_paths(self) -> None:
+        transport = FakeTransport([
+            (200, {}, {"algoId": 1, "clientAlgoId": "c", "algoStatus": "NEW"}),
+            (200, {}, {"algoId": 1, "clientAlgoId": "c", "algoStatus": "CANCELED"}),
+        ])
+        client = _client(transport)
+        await client.algo_order_query("RLCUSDT", "c")
+        await client.algo_order_cancel("RLCUSDT", "c")
+        assert "algoOrder" in transport.calls[0][1]
+        assert transport.calls[1][0] == "DELETE"

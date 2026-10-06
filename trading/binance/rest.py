@@ -288,6 +288,68 @@ class BinanceRestClient:
                                 weight=WEIGHT_ORDER_ACTION, order_action=True,
                                 retries=0)
 
+    # ---------- Algo Order API (условные ордера SL/TP; миграция §1) ----------
+
+    async def algo_order_new(self, params: Mapping[str, Any]) -> Any:
+        """POST /fapi/v1/algoOrder — постановка условного ордера.
+
+        Без слепых ретраев (как и обычные ордерные POST): при потере
+        ответа RealVenue выясняет статус через algo_order_query по
+        clientAlgoId.
+
+        Raises:
+            FilterFailureError: -1013; BinanceApiError: прочие отказы.
+        """
+        return await self._call("POST", "/fapi/v1/algoOrder", dict(params),
+                               signed=True, weight=WEIGHT_ORDER_ACTION,
+                               order_action=True, retries=0)
+
+    async def algo_order_query(
+        self, symbol: str, client_algo_id: str
+    ) -> Any:
+        """GET /fapi/v1/algoOrder по clientAlgoId (resolve/статус).
+
+        Returns:
+            Тело ответа биржи (Mapping) — включая ПУСТОЙ объект при
+            отсутствии ордера: в рабочем старом коде пустой resp трактовался
+            как «ордера нет» (if resp: ...). Различение «пусто» vs «ошибка»
+            здесь НЕ делается — политика у вызывающего (venue).
+
+        Raises:
+            BinanceApiError: коды биржи (какой именно код даёт биржа на
+            несуществующий cid — [НЕУВЕРЕН], снимает проба verify_api).
+        """
+        return await self._call(
+            "GET", "/fapi/v1/algoOrder",
+            {"symbol": symbol, "clientAlgoId": client_algo_id},
+            signed=True, weight=WEIGHT_QUERY_ORDER,
+            order_action=False, retries=self._get_retries,
+        )
+
+    async def algo_order_cancel(
+        self, symbol: str, client_algo_id: str
+    ) -> Any:
+        """DELETE /fapi/v1/algoOrder по clientAlgoId."""
+        return await self._call(
+            "DELETE", "/fapi/v1/algoOrder",
+            {"symbol": symbol, "clientAlgoId": client_algo_id},
+            signed=True, weight=WEIGHT_ORDER_ACTION,
+            order_action=True, retries=0,
+        )
+
+    async def algo_orders_open(self, symbol: str) -> Any:
+        """GET /fapi/v1/openAlgoOrders?symbol= (здоровье SL/TP, Часть A).
+
+        ВАЖНО: обычный /fapi/v1/openOrders алго-ордера НЕ возвращает
+        (подтверждено -4120 в live-прогоне) — для условных только этот
+        эндпоинт.
+        """
+        return await self._call(
+            "GET", "/fapi/v1/openAlgoOrders", {"symbol": symbol},
+            signed=True, weight=WEIGHT_OPEN_ORDERS,
+            order_action=False, retries=self._get_retries,
+        )
+
     async def open_orders(self, symbol: str) -> Any:
         """GET /fapi/v1/openOrders?symbol= (проверка здоровья SL, Часть A)."""
         return await self._call("GET", "/fapi/v1/openOrders",

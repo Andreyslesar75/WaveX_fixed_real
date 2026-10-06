@@ -20,7 +20,7 @@ from decimal import Decimal
 from typing import Any
 
 from ..money import to_api_str
-from ..types import Fill, OrderAck, OrderRequest, OrderState
+from ..types import Fill, OrderAck, OrderKind, OrderRequest, OrderState
 from ..venue import ExchangePosition, ExecutionVenue, VenueEvent
 from .rest import (
     BinanceApiError,
@@ -58,6 +58,76 @@ def build_order_params(request: OrderRequest) -> dict[str, str]:
         params["priceProtect"] = "TRUE"
     params["workingType"] = request.working_type
     return params
+
+def build_algo_params(request: OrderRequest) -> dict[str, str]:
+    """OrderRequest -> параметры POST /fapi/v1/algoOrder.
+
+    Контракт восстановлен из рабочего кода старого api.py (август,
+    аккаунт владельца): algoType=CONDITIONAL; triggerPrice вместо
+    stopPrice; clientAlgoId вместо newClientOrderId. priceProtect НЕ
+    отправляем: в рабочем коде отсутствовал, поддержка эндпоинтом не
+    подтверждена [НЕУВЕРЕН]. Статусная модель совместима: NEW/CANCELED/
+    FILLED/EXPIRED покрываются OrderState.from_exchange.
+    """
+    assert request.stop_price is not None  # инвариант OrderRequest
+    params: dict[str, str] = {
+        "algoType": "CONDITIONAL",
+        "symbol": request.symbol,
+        "side": request.side.value,
+        "type": request.kind.value,
+        "triggerPrice": to_api_str(request.stop_price),
+        "workingType": request.working_type,
+        "clientAlgoId": request.client_order_id,
+    }
+    if request.close_position:
+        params["closePosition"] = "true"
+    else:
+        assert request.qty is not None  # инвариант OrderRequest
+        params["quantity"] = to_api_str(request.qty)
+        if request.reduce_only:
+            params["reduceOnly"] = "true"
+    return params
+
+
+def _ack_from_algo_raw(client_order_id: str, raw: Any) -> OrderAck:
+    """Ответ Algo API -> OrderAck (валидация на границе).
+
+    Терпимость полей: POST-ответ и GET-статус различаются полнотой
+    (полный формат POST [НЕУВЕРЕН] — снимает verify_api); статус ищем
+    в algoStatus, потом status; avg — actualPrice/avgPrice.
+    """
+    if not isinstance(raw, Mapping) or not raw:
+        raise ValueError(f"алго-ответ пуст/не объект: {raw!r}")
+    raw_status = raw.get("algoStatus") or raw.get("status")
+    if not isinstance(raw_status, str):
+        raise ValueError(f"алго-ответ без статуса: {raw!r}")
+    state = OrderState.from_exchange(raw_status)
+    if state is None:
+        raise ValueError(f"неизвестный алго-статус: {raw_status!r}")
+    algo_id = raw.get("algoId")
+    avg = _safe_dec(raw.get("actualPrice")) or _safe_dec(raw.get("avgPrice"))
+    if avg is not None and avg <= 0:
+        avg = None
+    executed = _safe_dec(raw.get("executedQty"))
+    if executed is not None and executed <= 0:
+        executed = None
+    return OrderAck(
+        client_order_id=client_order_id,
+        exchange_order_id=algo_id if isinstance(algo_id, int) else None,
+        status=state, avg_price=avg, executed_qty=executed, raw=raw,
+    )
+
+
+def _algo_empty(raw: Any) -> bool:
+    """«Ордера нет» по алго-GET: пустой объект или отсутствие clientAlgoId.
+
+    Рабочий старый код трактовал пустой resp как «нет»; отказ с кодом
+    (какой именно — [НЕУВЕРЕН]) приходит как BinanceApiError и
+    обрабатывается вызывающим.
+    """
+    return (not isinstance(raw, Mapping)) or (
+        raw.get("clientAlgoId") is None and raw.get("algoId") is None
+    )
 
 
 class RealVenue(ExecutionVenue):
@@ -103,9 +173,17 @@ class RealVenue(ExecutionVenue):
         Raises:
             InsufficientFundsError: -2010/-2019 — реджект без ретрая.
         """
-        params = build_order_params(request)
+        if request.kind is OrderKind.MARKET:
+            params = build_order_params(request)
+        else:
+            # [МИГРАЦИЯ] условные ордера (SL/TP/RS) — Algo Order API:
+            # обычный /fapi/v1/order возвращает -4120 (подтверждено live)
+            params = build_algo_params(request)
         try:
-            raw = await self._rest.new_order(params)
+            if request.kind is OrderKind.MARKET:
+                raw = await self._rest.new_order(params)
+            else:
+                raw = await self._rest.algo_order_new(params)
         except FilterFailureError as exc:
             return self._rejected(request.client_order_id, exc)
         except BinanceApiError as exc:
@@ -116,40 +194,71 @@ class RealVenue(ExecutionVenue):
                 request.client_order_id,
             )
             return await self._resolve(request)
-        return _ack_from_raw(request.client_order_id, raw)
+        if request.kind is OrderKind.MARKET:
+            return _ack_from_raw(request.client_order_id, raw)
+        return _ack_from_algo_raw(request.client_order_id, raw)
 
     async def cancel_order(self, symbol: str, client_order_id: str) -> OrderAck:
         """Отменить ордер по clientOrderId.
 
+        Алго-first (все наши условные — алго; MARKET не отменяем).
+        -2011 на алго-DELETE трактуем как штатную гонку cancel/fill
+        (как в обычном пути) — эмпирика кода [НЕУВЕРЕН] снимет проба.
+
         Raises:
-            UnknownOrderError: -2011 — уже исполнен/отменён (штатная
-            гонка cancel/fill: движок обязан выяснить статус через
-            query_order, §9 черновика);
-            OrderNotFoundError: -2013 — ордера не было.
+            UnknownOrderError: -2011 (гонка); OrderNotFoundError: -2013
+            в обоих путях — ордера нет.
         """
-        raw = await self._rest.cancel_order(symbol, orig_client_order_id=client_order_id)
-        return _ack_from_raw(client_order_id, raw)
+        raw = await self._rest.algo_order_cancel(symbol, client_order_id)
+        if isinstance(raw, Mapping) and raw and not _algo_empty(raw):
+            return _ack_from_algo_raw(client_order_id, raw)
+        return OrderAck(
+            client_order_id=client_order_id,
+            exchange_order_id=None, status=OrderState.CANCELED,
+            raw={"cancelled": "algo", "empty_response": True},
+        )
 
     async def query_order(self, symbol: str, client_order_id: str) -> OrderAck | None:
-        """Статус ордера; None = ордера нет (никогда не вставал)."""
+        """Статус ордера; None = ордера нет.
+
+        Алго-first: условные — через GET /fapi/v1/algoOrder; если биржа
+        говорит «нет» (пустой объект) или -2013 — fallback на обычный
+        GET /fapi/v1/order (путь resolve входа MARKET после таймаута:
+        алго-GET честно ответит «нет», обычный найдёт исполнение).
+        """
         try:
-            raw = await self._rest.get_order(symbol, orig_client_order_id=client_order_id)
+            raw = await self._rest.algo_order_query(symbol, client_order_id)
+        except OrderNotFoundError:
+            raw = None
+        if raw is not None and not _algo_empty(raw):
+            return _ack_from_algo_raw(client_order_id, raw)
+        try:
+            raw2 = await self._rest.get_order(
+                symbol, orig_client_order_id=client_order_id
+            )
         except OrderNotFoundError:
             return None
-        return _ack_from_raw(client_order_id, raw)
+        return _ack_from_raw(client_order_id, raw2)
 
     async def open_orders(self, symbol: str) -> list[OrderAck]:
-        """Активные ордера символа (Часть A защиты: SL жив?)."""
-        raw = await self._rest.open_orders(symbol)
+        """Активные условные ордера символа (Часть A: SL жив?).
+
+        Только /fapi/v1/openAlgoOrders: обычный openOrders алго не
+        возвращает (-4120, live-подтверждение), а открытых обычных
+        ордеров у системы не бывает (все MARKET). Контракт движка
+        прежний: client_order_id в ack = clientAlgoId на бирже.
+        """
+        raw = await self._rest.algo_orders_open(symbol)
         if not isinstance(raw, list):
-            raise BinanceApiError(None, 200, "openOrders вернул не список",
-                                  "/fapi/v1/openOrders")
+            raise BinanceApiError(None, 200, "openAlgoOrders вернул не список",
+                                  "/fapi/v1/openAlgoOrders")
         acks: list[OrderAck] = []
         for item in raw:
-            if isinstance(item, Mapping):
-                cid = item.get("clientOrderId")
-                if isinstance(cid, str):
-                    acks.append(_ack_from_raw(cid, item))
+            if not isinstance(item, Mapping):
+                continue
+            cid = item.get("clientAlgoId")
+            if isinstance(cid, str):
+                acks.append(_ack_from_algo_raw(cid, item))
         return acks
 
     async def cancel_all_orders(self, symbol: str) -> int:

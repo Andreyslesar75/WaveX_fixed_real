@@ -921,7 +921,17 @@ class TradingEngine:
             signal_id=sid, position_ref=pos.entry_client_id,
         )
         sl_ack = await self._venue.execute_order(sl_req)
-        self._track_new_order(sl_req, "SL", sl_ack, pos.entry_client_id)
+        # -1013 (устаревший кэш фильтров): точечный refresh + ОДИН повтор
+        # тем же request (§3 черновика). Иначе Part B реставрирует SL
+        # по тем же устаревшим фильтрам и тоже промахнётся.
+        if (
+            sl_ack.status is OrderState.REJECTED
+            and str(sl_ack.raw.get("code")) == "-1013"
+        ):
+            await self._filters.refresh_symbol(pos.symbol)
+            sl_ack = await self._venue.execute_order(sl_req)
+        self._track_new_order(sl_req, "SL", sl_ack,
+                              pos.entry_client_id)
         if sl_ack.status not in (OrderState.NEW, OrderState.PARTIALLY_FILLED):
             self._incident(IncidentType.SL_LOST, pos.symbol, "critical",
                             f"SL не встал: {dict(sl_ack.raw)}")
