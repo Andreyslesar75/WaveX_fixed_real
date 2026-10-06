@@ -1,4 +1,5 @@
 """Тесты storage: dirty-check позиций, роль ордера, win_rate, equity."""
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 
@@ -10,7 +11,6 @@ from trading.storage import (
     TradeRecord,
 )
 from trading.types import Mode
-from dataclasses import replace
 
 POS = StoredPosition(
     symbol="RLCUSDT", side="LONG", entry_ts=1, entry_price=Decimal("100"),

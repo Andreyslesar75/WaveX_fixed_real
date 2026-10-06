@@ -21,6 +21,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, cast
 
@@ -42,7 +43,6 @@ from .notifier import Notifier
 from .protection import iron_triggered, restore_stop_market
 from .reconcile import Reconciler
 from .settings import EngineSettings
-from datetime import datetime, timezone
 from .storage import OrderRow, Storage, StoredPosition, TradeRecord
 from .types import (
     Confidence,
