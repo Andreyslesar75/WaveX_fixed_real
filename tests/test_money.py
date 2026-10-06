@@ -63,7 +63,9 @@ class TestComputeEntryQty:
         assert reason is None
 
     def test_below_min_qty(self) -> None:
-        qty, reason = compute_entry_qty(Decimal("20"), Decimal("0.3202"), _filters(min_qty="2"))
+        qty, reason = compute_entry_qty(
+            Decimal("20"), Decimal("0.3202"), _filters(min_qty="70")
+        )
         assert qty is None
         assert reason is RejectReason.QTY_BELOW_MIN
 

@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, cast
 
+from .filters import FiltersCache
 from .gates import GateState, check_gates
 from .levels import LevelCalculator
 from .manage import (
@@ -41,6 +42,7 @@ from .notifier import Notifier
 from .protection import iron_triggered, restore_stop_market
 from .reconcile import Reconciler
 from .settings import EngineSettings
+from datetime import datetime
 from .storage import OrderRow, Storage, StoredPosition, TradeRecord
 from .types import (
     Confidence,
@@ -125,7 +127,7 @@ class ManagedPosition:
     local_sl_price: Decimal
     tp1_price: Decimal | None
     tp2_price: Decimal | None
-    iron_sl_price: Decimal
+    iron_sl_price: Decimal | None  # Optional: паритет с протоколом защиты
     sl_client_id: str | None
     tp1_client_id: str | None
     tp2_client_id: str | None
@@ -168,7 +170,7 @@ class TradingEngine:
         venue: ExecutionVenue,
         storage: Storage,
         settings: EngineSettings,
-        filters_cache,  # FiltersCache (duck: get(symbol))
+        filters_cache: FiltersCache,
         calculator: LevelCalculator,
         notifier: Notifier,
         mode: Mode,
@@ -1092,11 +1094,16 @@ class TradingEngine:
 
     @staticmethod
     def _local_day_start_ms(now: int) -> int:
-        """Граница суток в локальном времени (паритет со старым .date())."""
-        lt = time.localtime(now / 1000)
-        return int(
-            time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, -1)) * 1000
-        )
+        """Граница суток в локальном времени (паритет со старым .date()).
+
+        Через datetime, а не time.mktime: mktime на Windows падает
+        OverflowError на датах до эпохи (локальная полночь ранних
+        timestamp — отрицательное время). datetime.timestamp()
+        вычисляет календарно и принимает pre-epoch.
+        """
+        dt = datetime.fromtimestamp(now / 1000)
+        day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        return int(day_start.timestamp() * 1000)
 
     def _roll_daily(self, now: int) -> None:
         """Сброс дневных счётчиков при смене суток (вызывается монитором)."""

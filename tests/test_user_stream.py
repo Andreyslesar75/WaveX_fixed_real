@@ -113,7 +113,8 @@ class TestStreamLifecycle:
         ])
         queue: asyncio.Queue = asyncio.Queue()
         stream = UserStream(api, factory, "wss://x", queue,
-                            silence_timeout_s=0.05, keepalive_interval_s=60)
+                            silence_timeout_s=0.05, keepalive_interval_s=60,
+                            reconnect_delay_s=0.01)
         task = asyncio.create_task(stream.run())
         await asyncio.sleep(0.3)
         task.cancel()

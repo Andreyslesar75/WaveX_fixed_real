@@ -35,7 +35,8 @@ class TestParity:
     def test_all_pass_qty(self) -> None:
         out = check_gates(_signal(), LEVELS, GateState(), EngineSettings(),
                           _filters(), Decimal("100"), 0)
-        assert out.ok and out.qty == Decimal("62.4")
+        # size 20 USDT / цена 100 = 0.2 (floor по step 0.1 — без изменений)
+        assert out.ok and out.qty == Decimal("0.2")
 
     def test_skip_confidence(self) -> None:
         out = check_gates(_signal(confidence="SKIP"), LEVELS, GateState(),
@@ -73,7 +74,7 @@ class TestParity:
 
 class TestCooldowns:
     def test_sl_cooldown_blocked(self) -> None:
-        state = GateState(cooldown_until_ms={"RLCUSDT": 1_000})
+        state = GateState(cooldown_until_ms={"RLCUSDT": 10_000})
         out = check_gates(_signal(), LEVELS, state, EngineSettings(),
                           _filters(), None, 2_000)
         assert out.reason is RejectReason.COOLDOWN_SL

@@ -487,7 +487,7 @@ class StorageReader:
         rows = self._query(
             "SELECT t.symbol, t.side, t.entry_ts, t.exit_ts, t.entry_price,"
             " t.exit_price, t.net_pnl, t.pnl_pct, t.exit_reason, s.score"
-            " FROM trades t JOIN signals s ON s.id = t.signal_id"
+            " FROM trades t LEFT JOIN signals s ON s.id = t.signal_id"
             " ORDER BY t.exit_ts DESC LIMIT ?",
             (limit,),
         )
@@ -498,7 +498,8 @@ class StorageReader:
                 "timestamp": _iso(r[3]),
                 "entry_price": float(r[4]), "exit_price": float(r[5]),
                 "pnl_usdt": float(r[6]), "pnl_pct": r[7],
-                "exit_reason": r[8], "score": r[9],
+                "exit_reason": r[8],
+                "score": r[9] if r[9] is not None else 0.0,
             }
             for r in rows
         ]

@@ -47,12 +47,12 @@ class FixedClock:
         return self.ts
 
 
-def _client(transport: FakeTransport) -> BinanceRestClient:
+def _client(transport: FakeTransport, **kw: Any) -> BinanceRestClient:
     limiter = RateLimiter()
     return BinanceRestClient(
         transport=transport, api_key="KEY", secret_key="SECRET",
         base_url="https://fapi.binance.com", limiter=limiter,
-        clock=FixedClock(1_700_000_000_000), request_timeout_s=5.0,
+        clock=FixedClock(1_700_000_000_000), request_timeout_s=5.0, **kw,
     )
 
 
@@ -132,6 +132,6 @@ class TestRetriesAndLimits:
             (429, {"Retry-After": "2"}, {"code": 429, "msg": "busy"}),
         ])
         with pytest.raises(TransientError):
-            await _client(transport).balance()
+            await _client(transport, get_retries=0).balance()
         # limiter получил паузу — проверяем косвенно: следующий вызов ждёт
         assert len(transport.calls) == 1

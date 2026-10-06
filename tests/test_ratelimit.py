@@ -14,7 +14,7 @@ class FakeClock:
 class TestTokenBucket:
     def test_wait_ms_math(self) -> None:
         clock = FakeClock(0)
-        b = _TokenBucket("t", 100, 100_000, 0.5, clock)  # 0.5 токенов/мс
+        b = _TokenBucket("t", 100, 100, 0.5, clock)  # 100*0.5/100мс = 0.5 ток/мс
         assert b.try_acquire(40) is True      # осталось 10 из 50
         assert b.wait_ms(30) == 40            # дефицит 20 / 0.5 = 40 мс
         clock.now = 40

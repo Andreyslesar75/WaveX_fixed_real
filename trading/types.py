@@ -260,7 +260,9 @@ def make_client_id(signal_id: int, code: str, seq: int = 0) -> str:
     Raises:
         ValueError: результат не проходит правила Binance.
     """
-    cid = f"wx{signal_id}-{code}{seq}"
+    # seq приклеивается только при >0: базовые ордера сигнала остаются
+    # короткими (wx1-sl), повторные постановки уровня — wx1-sl1, wx1-sl2
+    cid = f"wx{signal_id}-{code}{seq}" if seq > 0 else f"wx{signal_id}-{code}"
     if not _CLIENT_ID_RE.fullmatch(cid):
         raise ValueError(f"clientOrderId не проходит правила Binance: {cid!r}")
     return cid

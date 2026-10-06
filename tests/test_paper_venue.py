@@ -46,7 +46,8 @@ class TestEntryAndStop:
         venue = _venue()
         ack = await venue.execute_order(ENTRY)
         assert ack.status is OrderState.FILLED
-        assert str(ack.avg_price) == "0.32"
+        # Decimal-сравнение по значению: арифметика даёт trailing zero ('0.320')
+        assert ack.avg_price == Decimal("0.32")
         assert str(ack.executed_qty) == "62.4"
         fee = Decimal("62.4") * Decimal("0.32") * Decimal("0.0004")
         assert venue._balance == Decimal("1000") - fee

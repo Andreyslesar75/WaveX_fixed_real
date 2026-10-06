@@ -323,4 +323,4 @@ class TestRejects:
         assert row is not None
         assert row[0] == "rejected" and row[1] == "score_threshold"
         engine._storage.close()
-        db.unlink(missing_ok=True)  # noqa: ASYNC240 — тестовая уборка
+        db.unlink(missing_ok=True)
